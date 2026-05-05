@@ -11,10 +11,12 @@ export default function OkrTreePage() {
   const { client, isHealthy } = useOkr()
   const [tree, setTree] = useState<OkrTreeNode | null>(null)
   const [loading, setLoading] = useState(true)
+  const [pageError, setPageError] = useState(false)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     setLoading(true)
+    setPageError(false)
     client
       .getCompanyOkrTree(2026)
       .then((t) => {
@@ -24,7 +26,10 @@ export default function OkrTreePage() {
         t.children?.forEach((c) => ids.add(c.id))
         setExpanded(ids)
       })
-      .catch(() => setTree(null))
+      .catch(() => {
+        setTree(null)
+        setPageError(true)
+      })
       .finally(() => setLoading(false))
   }, [client])
 
@@ -37,11 +42,11 @@ export default function OkrTreePage() {
     })
   }
 
-  if (!isHealthy) {
+  if (!isHealthy || pageError) {
     return (
       <div className="w-full space-y-6">
         <div className="rounded-md bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-4 text-amber-800 dark:text-amber-200">
-          <strong>OKR 시스템 일시 미연결</strong> — 작성한 내용은 곧 동기화됩니다
+          <strong>OKR 시스템 일시 미연결</strong> — 작성한 내용은 곧 동기화됩니다 (5xx graceful degrade)
         </div>
       </div>
     )

@@ -15,12 +15,23 @@ export default function OkrBottleneckPage() {
     limitingKrId: string
     alignments: Array<{ fromKrId: string; toKrId: string; type: 'depends_on' | 'enables' | 'parallel_with' }>
   } | null>(null)
+  const [pageError, setPageError] = useState(false)
 
   useEffect(() => {
-    client.getBottleneckData(2026, 'Q3').then(setData).catch(() => setData(null))
+    setPageError(false)
+    client.getBottleneckData(2026, 'Q3').then(setData).catch(() => {
+      setData(null)
+      setPageError(true)
+    })
   }, [client])
 
-  if (!isHealthy) return <div className="rounded-md bg-amber-50 p-4">OKR 시스템 일시 미연결</div>
+  if (!isHealthy || pageError) {
+    return (
+      <div className="rounded-md bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-4 text-amber-800 dark:text-amber-200">
+        <strong>OKR 시스템 일시 미연결</strong> — 작성한 내용은 곧 동기화됩니다 (5xx graceful degrade)
+      </div>
+    )
+  }
   if (!data) return <div className="p-6 text-muted-foreground">로딩 중...</div>
 
   const limitingKr = data.krs.find((k) => k.id === data.limitingKrId)

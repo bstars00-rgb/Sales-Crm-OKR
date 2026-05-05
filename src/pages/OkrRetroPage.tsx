@@ -11,17 +11,28 @@ export default function OkrRetroPage() {
   const { client, isHealthy } = useOkr()
   const [report, setReport] = useState<QuarterRetroReport | null>(null)
   const [loading, setLoading] = useState(true)
+  const [pageError, setPageError] = useState(false)
 
   useEffect(() => {
     setLoading(true)
+    setPageError(false)
     client
       .getQuarterRetro('Q3', 2026)
       .then(setReport)
-      .catch(() => setReport(null))
+      .catch(() => {
+        setReport(null)
+        setPageError(true)
+      })
       .finally(() => setLoading(false))
   }, [client])
 
-  if (!isHealthy) return <div className="rounded-md bg-amber-50 p-4">OKR 시스템 일시 미연결</div>
+  if (!isHealthy || pageError) {
+    return (
+      <div className="rounded-md bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-4 text-amber-800 dark:text-amber-200">
+        <strong>OKR 시스템 일시 미연결</strong> — 작성한 내용은 곧 동기화됩니다 (5xx graceful degrade)
+      </div>
+    )
+  }
   if (loading) return <div className="p-6 text-muted-foreground">로딩 중...</div>
   if (!report)
     return (
