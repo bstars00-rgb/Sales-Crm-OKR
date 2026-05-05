@@ -412,78 +412,160 @@ export const mockContributions: KrContribution[] = [
 ]
 
 // ============================================================================
-// 6. Limiting Step (오늘의 추천)
+// 6. Limiting Step (오늘의 추천) — Round 15 다양화
 // ============================================================================
+//
+// AI 없이 알고리즘으로 동적 생성:
+// 1. KR_RECOMMENDATION_POOL — KR마다 historical task 패턴 기반 12~15개 templates
+// 2. USER_LIMITING_KR — 사용자별 가장 뒤쳐진 KR 매핑 (실제 production은 BR-OKR-002 알고리즘)
+// 3. getRecommendationForUser() — 매 호출 시 pool에서 random 3건 pick (방법 A 패턴 + 방법 B historical 결합)
 
+// KR별 추천 task pool (방법 A 카테고리 패턴 + 방법 B historical title 재사용)
+export const KR_RECOMMENDATION_POOL: Record<string, string[]> = {
+  // KR-S-1 신규 채널 5개 확보 — count metric, NewDeal 카테고리 빈도 높음
+  'kr-s-1': [
+    'Booking.com 신규 채널 미팅 follow-up',
+    'Trip.com 계약 조건 협의',
+    'Agoda 통합 NDA 검토',
+    'Yanolja 일본 진출 미팅',
+    'MakeMyTrip 인도 시장 진출 검토',
+    'Klook 동남아 통합 가능성 타진',
+    '신규 OTA 후보 리스트 정리 (3개)',
+    '채널 우선순위 ranking 업데이트',
+    'Trip.com 결제 시스템 연동 검토',
+    'Booking.com 견적 제안서 발송',
+    'Wing On Travel 계약 검토 회의',
+    'Rakuten Travel B2B 통합 미팅',
+    '경쟁사 채널 다변화 전략 분석',
+    'Director 보고용 신규 채널 pipeline 정리',
+  ],
+  // KR-S-2 Q3 TTV ¥45억 — currency metric, Pipeline/Contract 카테고리
+  'kr-s-2': [
+    'Q3 마감 임박 거래 점검 (≥¥1억 거래 5건)',
+    '대형 채널 견적 발송 — Trip.com / Booking.com',
+    '월말 클로징 follow-up — 8월 마감 거래',
+    '8월 마감 임박 거래 가격 재협상',
+    '결제 조건 finalize — 30일 → 45일 검토',
+    'Won 후보 거래 클로징 가속화 미팅',
+    'Q3 판매팀 KPI 진척률 점검',
+    '월별 TTV target 분해 (¥15억/월)',
+    '주간 매출 보고서 작성 + Director 공유',
+    '대형 거래 결제 일정 확인',
+    'Director 면담 — 클로징 위험 거래 보고',
+    'Pipeline Stage Won 전환 회의',
+    'Forecast Category Commit/BestCase 재분류',
+    '환율 영향 시뮬레이션 (JPY/USD/CNY)',
+  ],
+  // KR-S-3 Ctrip 의존도 -10%P — percent metric, NewDeal/Follow-up 카테고리
+  'kr-s-3': [
+    'Booking.com 신규 채널 확보 미팅',
+    'Trip.com 계약 검토 follow-up',
+    'Ctrip 외 신규 일본 OTA 시장조사',
+    'Yanolja 일본 진출 미팅',
+    'Agoda 일본 시장 비중 확대 협의',
+    '국내 OTA 비교 분석 보고서',
+    'Ctrip 의존도 월별 추이 분석',
+    '대안 채널 partnership 제안',
+    'Booking.com vs 일본 OTA 비교 검토',
+    '일본 OTA 점유율 시장조사',
+    '한국 OTA 일본 진출 가능성 검토',
+    'Ctrip 의존도 분기 대시보드 점검',
+    '동남아 OTA로 다변화 전략 수립',
+    '경쟁사 의존도 비교 분석 (Ctrip/Booking/Agoda)',
+  ],
+  // KR-S-4 B2B Travel Agent 신규 3건 — historical 0건 fallback
+  'kr-s-4': [
+    'KR-S-4 관련 미팅 예약',
+    'B2B Travel Agent 담당자 연락',
+    'KR-S-4 달성 계획 수립',
+    'B2B partnership 후보 리스트 정리',
+    '경쟁사 B2B 전략 분석',
+    'B2B 채널 발굴 시장조사',
+    'B2B 계약 표준 template 작성',
+    'Travel Agent 협회 참석 미팅 예약',
+  ],
+  // KR-M-1 SCM 매입 capacity 50% — Cross-team alignment 시연용
+  'kr-m-1': [
+    'SCM 매입 capacity 확장 회의',
+    '신규 채널 매입 line setup 검토',
+    'SCM Director 1:1 alignment 미팅',
+    '시즌성 가중치 v2 검토',
+    '매입 단가 재협상 (Tier 1 호텔)',
+  ],
+  // KR-MK-1 Marketing 미디어 노출 — Cross-team
+  'kr-mk-1': [
+    'Tier 1 미디어 partnership 제안',
+    '홍보 자료 영문/일문 번역 검토',
+    '미디어 프레스킷 업데이트',
+    '주요 미디어 인터뷰 요청',
+    '브랜드 가이드 v2 작성',
+  ],
+}
+
+// 사용자별 가장 뒤쳐진 KR 매핑 (실제 production은 BR-OKR-002 알고리즘으로 자동 식별)
+// 6명의 sales user가 각각 다른 KR 영역에서 압박받는 다양한 시연 시나리오
+export const USER_LIMITING_KR: Record<string, { krId: string; isFallback?: boolean } | null> = {
+  'u-sales-1': { krId: 'kr-s-3' },                    // Ctrip 의존도 5% 지연
+  'u-sales-2': { krId: 'kr-s-1' },                    // 신규 채널 5개 — 다른 각도
+  'u-sales-3': { krId: 'kr-s-4', isFallback: true },  // 신규 KR — historical 0건 fallback
+  'u-sales-4': { krId: 'kr-s-2' },                    // TTV currency 부담
+  'u-sales-5': { krId: 'kr-s-3' },                    // Ctrip 의존도 — 다른 사용자 다른 추천
+  'u-sales-6': { krId: 'kr-s-1' },                    // 신규 채널 — 다른 각도
+  'u-admin': null, // OKR 미할당 — 정상
+}
+
+// Fisher-Yates shuffle (편향 없는 random)
+function shuffle<T>(arr: T[]): T[] {
+  const copy = [...arr]
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[copy[i], copy[j]] = [copy[j], copy[i]]
+  }
+  return copy
+}
+
+/**
+ * 동적 추천 생성 — AI 없이 알고리즘 기반.
+ * 매 호출 시 KR_RECOMMENDATION_POOL에서 random 3건 pick (방법 A + B 결합)
+ * production은 BR-OKR-002 알고리즘 (카테고리 빈도 + historical title 재사용)
+ */
+export function getRecommendationForUser(userId: string): LimitingStepRecommendation | null {
+  const limiting = USER_LIMITING_KR[userId]
+  if (!limiting) return null
+  const kr = mockKeyResults.find((k) => k.id === limiting.krId)
+  if (!kr) return null
+
+  const pool = KR_RECOMMENDATION_POOL[limiting.krId] ?? []
+  if (pool.length === 0) return null
+
+  // pool에서 random 3건 (또는 pool 크기보다 작으면 그만큼)
+  const recommended = shuffle(pool).slice(0, Math.min(3, pool.length))
+
+  const expectedProgress = limiting.isFallback ? 0.10 : 0.55 // Q3 50% 경과 (신규 KR은 낮은 기대치)
+  const krProgress = kr.progress ?? 0
+  const delayPercent = Math.max(0, Math.round((expectedProgress - krProgress) * 100))
+
+  return {
+    krId: kr.id,
+    title: kr.title,
+    progress: krProgress,
+    expectedProgress,
+    delay: `${delayPercent}%`,
+    recommendedTasks: recommended,
+    isFallback: !!limiting.isFallback,
+    reason: limiting.isFallback ? '신규 KR이라 추천 패턴 부족 — 일반 권장 문구 표시' : undefined,
+  }
+}
+
+// Backward compatibility — 정적 맵 (legacy 호출용)
+// Production: getRecommendationForUser() 동적 호출 권장 (매번 다른 추천)
 export const mockLimitingStepRecommendations: Record<string, LimitingStepRecommendation | null> = {
-  'u-sales-1': {
-    krId: 'kr-s-3',
-    title: 'Ctrip 의존도 -10%P 감소',
-    progress: 0.50,
-    expectedProgress: 0.55, // Q3 경과 50% 기준
-    delay: '5%',
-    recommendedTasks: [
-      'Booking.com 신규 채널 미팅 follow-up',
-      'Trip.com 계약 검토 follow-up',
-      'Ctrip 외 신규 일본 OTA 시장조사',
-    ],
-    isFallback: false,
-  },
-  'u-sales-2': {
-    krId: 'kr-s-3',
-    title: 'Ctrip 의존도 -10%P 감소',
-    progress: 0.50,
-    expectedProgress: 0.55,
-    delay: '5%',
-    recommendedTasks: [
-      'Ctrip 외 신규 일본 OTA 시장조사',
-      'Yanolja 일본 진출 미팅',
-      '국내 OTA 비교 분석',
-    ],
-    isFallback: false,
-  },
-  'u-sales-3': {
-    krId: 'kr-s-4',
-    title: 'B2B Travel Agent 파트너십 신규 3건',
-    progress: 0,
-    expectedProgress: 0.10, // 신규 KR이라 기대치 낮음
-    delay: '10%',
-    recommendedTasks: [
-      'KR-S-4 관련 미팅 예약',
-      'B2B Travel Agent 담당자 연락',
-      'KR-S-4 달성 계획 수립',
-    ],
-    isFallback: true, // historical 0건
-    reason: '신규 KR이라 추천 패턴 부족 — 일반 권장 문구 표시',
-  },
-  'u-sales-4': null, // 활성 KR이 모두 정상 — 배너 미표시
-  'u-sales-5': {
-    krId: 'kr-s-2',
-    title: 'Q3 TTV ¥45억 달성',
-    progress: 0.45,
-    expectedProgress: 0.55,
-    delay: '10%',
-    recommendedTasks: [
-      'Q2 Won 기회의 후속 미팅',
-      '대형 채널 견적 발송',
-      '계약 클로징 follow-up',
-    ],
-    isFallback: false,
-  },
-  'u-sales-6': {
-    krId: 'kr-s-2',
-    title: 'Q3 TTV ¥45억 달성',
-    progress: 0.45,
-    expectedProgress: 0.55,
-    delay: '10%',
-    recommendedTasks: [
-      '8월 마감 임박 거래 점검',
-      '대형 거래 견적 송부',
-      '월말 클로징 회의 준비',
-    ],
-    isFallback: false,
-  },
-  // admin/CEO 등 KR 미할당자
+  'u-sales-1': getRecommendationForUser('u-sales-1'),
+  'u-sales-2': getRecommendationForUser('u-sales-2'),
+  'u-sales-3': getRecommendationForUser('u-sales-3'),
+  'u-sales-4': getRecommendationForUser('u-sales-4'),
+  'u-sales-5': getRecommendationForUser('u-sales-5'),
+  'u-sales-6': getRecommendationForUser('u-sales-6'),
   'u-admin': null,
 }
 

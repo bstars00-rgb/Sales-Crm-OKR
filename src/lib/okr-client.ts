@@ -24,10 +24,10 @@ import {
   getContributionsByKr,
   getAlignmentsByKr,
   calculateKrProgress,
+  getRecommendationForUser,
   mockObjectives,
   mockKeyResults,
   mockContributions,
-  mockLimitingStepRecommendations,
   mockQ3RetroReport,
   mockGoals,
 } from '@/mocks/okr'
@@ -122,7 +122,8 @@ export class OkrClient {
     await sleep(NETWORK_LATENCY_MS)
     if (SIMULATE_OUTAGE) throw new Error('OKR_PLATFORM_5XX')
     void params.date
-    return mockLimitingStepRecommendations[params.userId] ?? null
+    // 매 호출마다 KR_RECOMMENDATION_POOL에서 random 3건 pick — 다양화 (Round 15)
+    return getRecommendationForUser(params.userId)
   }
 
   // 본인 OKR Tree
