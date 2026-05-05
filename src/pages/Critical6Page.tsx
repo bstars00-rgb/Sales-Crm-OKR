@@ -184,6 +184,18 @@ export default function Critical6Page() {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => {
+              if (tasks.length > 0 && !confirm(`현재 ${tasks.length}개 업무를 모두 지우고 빈 보드로 시작합니다.\n계속하시겠습니까? (시연 전용)`)) return
+              setTasks([])
+              setCarryOverDismissed(true)
+              toast.info('빈 보드로 초기화 — 6개 슬롯 모두 비어있습니다. [+ 추가] 버튼을 클릭하여 작성을 시작하세요.', { duration: 5000 })
+            }}
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-dashed border-amber-400 text-sm text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950"
+            title="현재 task 모두 지우고 빈 보드 시작 (시연용)"
+          >
+            새 보드 시작
+          </button>
+          <button
             onClick={() => toast.info('내일로 임시 저장 (Mock)')}
             className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border text-sm hover:bg-accent"
           >
