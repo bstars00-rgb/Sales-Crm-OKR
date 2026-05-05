@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>OhMyHotel Sales CRM</title>
+  <script>
+    // GitHub Pages SPA fallback — HashRouter 사용 중이라 일반적으로 불필요하지만 안전장치
+    var basePath = '/Sales-CRM/';
+    var path = window.location.pathname;
+    if (path.indexOf(basePath) === 0) {
+      var hash = path.substring(basePath.length);
+      window.location.replace(basePath + (hash ? '#/' + hash : ''));
+    } else {
+      window.location.replace(basePath);
+    }
+  </script>
+</head>
+<body>
+  <p>Redirecting to <a href="/Sales-CRM/">OhMyHotel Sales CRM</a>...</p>
+</body>
+</html>
