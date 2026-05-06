@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactElement } from 'react'
 import {
   Sun, Plus, GripVertical, X, Calendar as CalendarIcon, AlertTriangle,
   Star, Heart, Send, Save, ArrowRight, Users, Clock, CheckCircle2, ChevronDown, Palette, Smile, Sparkles,
@@ -37,7 +37,33 @@ function todayKST(): string {
 function formatTime(iso?: string): string {
   if (!iso) return ''
   const d = new Date(iso)
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  // 30분 단위로 normalize (가까운 30분 단위로 반올림)
+  const m = d.getMinutes()
+  const normalized = m < 15 ? 0 : m < 45 ? 30 : 60
+  let hour = d.getHours()
+  let minute = normalized
+  if (normalized === 60) { hour = (hour + 1) % 24; minute = 0 }
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+}
+
+// 30분 단위 시간 옵션 (06:00 ~ 23:30, 36개)
+function generateHalfHourOptions() {
+  const options: ReactElement[] = []
+  for (let h = 6; h < 24; h++) {
+    for (let m = 0; m < 60; m += 30) {
+      const hh = String(h).padStart(2, '0')
+      const mm = String(m).padStart(2, '0')
+      const value = `${hh}:${mm}`
+      // 친근한 라벨 (오전/오후 + 점심/퇴근 표시)
+      let label = value
+      if (h === 9 && m === 0) label = '09:00 (출근)'
+      else if (h === 12 && m === 0) label = '12:00 (점심)'
+      else if (h === 13 && m === 0) label = '13:00'
+      else if (h === 18 && m === 0) label = '18:00 (퇴근)'
+      options.push(<option key={value} value={value}>{label}</option>)
+    }
+  }
+  return options
 }
 
 // Round 16 Phase D — 날짜 helper
@@ -908,21 +934,26 @@ function TaskRow({
               </span>
             )}
 
-            {/* Due time */}
+            {/* Due time — 30분 단위 select (Round 16 Phase D) */}
             <div className="inline-flex items-center gap-1 h-6 px-2 rounded border border-input bg-background text-xs">
               <Clock className="w-3 h-3 text-muted-foreground" />
-              <input
-                type="time"
+              <select
                 value={task.dueAt ? formatTime(task.dueAt) : ''}
                 onChange={(e) => {
-                  const [h, m] = e.target.value.split(':').map(Number)
-                  if (isNaN(h)) { onUpdate({ dueAt: undefined }); return }
-                  const d = new Date()
-                  d.setHours(h, m || 0, 0, 0)
+                  const v = e.target.value
+                  if (!v) { onUpdate({ dueAt: undefined }); return }
+                  const [h, m] = v.split(':').map(Number)
+                  // dueDate 기준 시간 설정 (없으면 오늘)
+                  const baseDate = task.dueDate ?? task.startDate ?? task.date
+                  const d = new Date(`${baseDate}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`)
                   onUpdate({ dueAt: d.toISOString() })
                 }}
-                className="bg-transparent border-0 outline-0 w-[58px] text-xs"
-              />
+                className="bg-transparent border-0 outline-0 text-xs cursor-pointer"
+                aria-label="마감 시각 (30분 단위)"
+              >
+                <option value="">시간 미설정</option>
+                {generateHalfHourOptions()}
+              </select>
             </div>
 
             {/* Status */}
