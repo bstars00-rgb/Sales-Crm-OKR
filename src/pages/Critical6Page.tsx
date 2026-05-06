@@ -54,13 +54,7 @@ function generateHalfHourOptions() {
       const hh = String(h).padStart(2, '0')
       const mm = String(m).padStart(2, '0')
       const value = `${hh}:${mm}`
-      // 친근한 라벨 (오전/오후 + 점심/퇴근 표시)
-      let label = value
-      if (h === 9 && m === 0) label = '09:00 (출근)'
-      else if (h === 12 && m === 0) label = '12:00 (점심)'
-      else if (h === 13 && m === 0) label = '13:00'
-      else if (h === 18 && m === 0) label = '18:00 (퇴근)'
-      options.push(<option key={value} value={value}>{label}</option>)
+      options.push(<option key={value} value={value}>{value}</option>)
     }
   }
   return options
