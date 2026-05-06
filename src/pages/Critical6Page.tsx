@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   Sun, Plus, GripVertical, X, Calendar as CalendarIcon, AlertTriangle,
-  Star, Send, Save, ArrowRight, Users, Clock, CheckCircle2, ChevronDown,
+  Star, Heart, Send, Save, ArrowRight, Users, Clock, CheckCircle2, ChevronDown, Palette, Smile, Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
@@ -11,13 +11,14 @@ import {
 } from '@/mocks/critical6'
 import { mockClients } from '@/mocks/clients'
 import { mockUsers } from '@/mocks/users'
-import type { Task, TaskStatus, TaskRank, TaskImportance, TaskCategory } from '@/types'
+import type { Task, TaskStatus, TaskRank, TaskImportance, TaskCategory, TaskCardColor } from '@/types'
+import { TASK_CARD_COLOR_PALETTE, TASK_EMOJI_PRESETS } from '@/types'
 import { useOkr } from '@/contexts/OkrContext'
 import { Target as TargetIcon, Link2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-// Critical 6 PRD v1 Sprint 1 — 작성 화면 (List view)
-// 6개 제한 + 우선순위 1~6 드래그 + 5단계 상태
+// Critical 6 PRD v1.4 (Round 16) — 6개 제한 해제 + 꾸미기 / 애착 형성
+// 권장 6개 (강제 X) + 우선순위 드래그 + 5단계 상태 + 색상/이모지/하트 옵션
 
 const CATEGORY_LABELS: Record<TaskCategory, string> = {
   NewDeal: '신규 거래',
@@ -111,10 +112,7 @@ export default function Critical6Page() {
   }
 
   const addTask = (preset?: Partial<Task>) => {
-    if (filledCount >= 6) {
-      toast.error('Critical 6 제한 — 하루 최대 6개만 등록 가능합니다 (PRD F2)')
-      return
-    }
+    // Round 16: 6개 제한 해제 — 권장 6개이지만 무제한 추가 가능
     const nextRank = (filledCount + 1) as TaskRank
     const now = new Date().toISOString()
     const newTask: Task = {
@@ -134,13 +132,13 @@ export default function Critical6Page() {
       ...preset,
     }
     setTasks((prev) => [...prev, newTask])
+    if (filledCount + 1 > 6) {
+      toast.info(`${filledCount + 1}번째 task 추가 — 권장 6개를 넘었어요 ✨`, { duration: 3000 })
+    }
   }
 
   const importCarryOver = (sourceTask: Task) => {
-    if (filledCount >= 6) {
-      toast.error('Critical 6 제한 — 6개 슬롯이 모두 찼습니다')
-      return
-    }
+    // Round 16: carry-over도 무제한
     addTask({
       title: sourceTask.title,
       description: sourceTask.description,
@@ -171,14 +169,18 @@ export default function Critical6Page() {
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
             <Sun className="w-6 h-6 text-amber-500" />
-            Critical 6 — 오늘의 핵심 6가지
-            <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-primary/10 text-primary border border-primary/20">
-              PRD v1 Sprint 1
+            Critical 6 — 오늘의 핵심 ✨
+            <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-pink-100 dark:bg-pink-950 text-pink-700 dark:text-pink-300 border border-pink-200 dark:border-pink-800">
+              꾸미기 v1.4
             </span>
           </h2>
           <p className="text-xs text-muted-foreground mt-1">
             {todayKST()} ({['일','월','화','수','목','금','토'][new Date().getDay()]}) ·{' '}
-            <span className="font-semibold">{filledCount}/6 작성</span> ·{' '}
+            <span className="font-semibold">
+              {filledCount}개 작성
+              {filledCount > 0 && filledCount <= 6 && <span className="text-pink-500"> · 권장 6개</span>}
+              {filledCount > 6 && <span className="text-violet-500"> · 권장 +{filledCount - 6}개 ✨</span>}
+            </span> ·{' '}
             완료 {stats.done} · 진행 {stats.inProgress} · Blocked {stats.blocked}
           </p>
         </div>
@@ -240,8 +242,7 @@ export default function Critical6Page() {
                     )}
                     <button
                       onClick={() => importCarryOver(t)}
-                      disabled={filledCount >= 6}
-                      className="text-[10px] px-2 py-0.5 rounded bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50"
+                      className="text-[10px] px-2 py-0.5 rounded bg-amber-500 text-white hover:bg-amber-600"
                     >
                       이월
                     </button>
@@ -260,33 +261,11 @@ export default function Critical6Page() {
         </div>
       )}
 
-      {/* 6 Slots */}
+      {/* Task slots — 무제한 (Round 16, 권장 6개) */}
       <div className="space-y-2">
-        {Array.from({ length: 6 }).map((_, i) => {
-          const rank = (i + 1) as TaskRank
-          const task = tasks.find((t) => t.rank === rank)
-          const isDragOver = dragOverRank === rank
-          if (!task) {
-            return (
-              <button
-                key={`slot-${rank}`}
-                onClick={() => addTask()}
-                onDragOver={(e) => { e.preventDefault(); setDragOverRank(rank) }}
-                onDragLeave={() => setDragOverRank((r) => r === rank ? null : r)}
-                onDrop={() => handleDrop(rank)}
-                className={cn(
-                  'w-full flex items-center gap-3 px-4 py-4 rounded-lg border-2 border-dashed transition-all text-left',
-                  isDragOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40 hover:bg-accent/50'
-                )}
-              >
-                <span className="w-7 h-7 flex items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground">
-                  {rank}
-                </span>
-                <Plus className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">+ 추가</span>
-              </button>
-            )
-          }
+        {/* 작성된 task들 */}
+        {[...tasks].sort((a, b) => a.rank - b.rank).map((task) => {
+          const isDragOver = dragOverRank === task.rank
           return (
             <TaskRow
               key={task.id}
@@ -296,22 +275,61 @@ export default function Critical6Page() {
               collaboratorOpen={collaboratorOpenId === task.id}
               onDragStart={() => handleDragStart(task.id)}
               onDragEnd={handleDragEnd}
-              onDragOver={(e) => { e.preventDefault(); setDragOverRank(rank) }}
-              onDragLeave={() => setDragOverRank((r) => r === rank ? null : r)}
-              onDrop={() => handleDrop(rank)}
+              onDragOver={(e) => { e.preventDefault(); setDragOverRank(task.rank) }}
+              onDragLeave={() => setDragOverRank((r) => r === task.rank ? null : r)}
+              onDrop={() => handleDrop(task.rank)}
               onUpdate={(patch) => updateTask(task.id, patch)}
               onRemove={() => removeTask(task.id)}
               onToggleCollab={() => setCollaboratorOpenId((id) => id === task.id ? null : task.id)}
             />
           )
         })}
+
+        {/* 권장 6개까지 빈 슬롯 노출 (가독성 + 작성 안내) */}
+        {filledCount < 6 && Array.from({ length: 6 - filledCount }).map((_, i) => {
+          const slotRank = (filledCount + i + 1) as TaskRank
+          return (
+            <button
+              key={`empty-slot-${slotRank}`}
+              onClick={() => addTask()}
+              className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl border-2 border-dashed border-border hover:border-pink-400 hover:bg-pink-50/30 dark:hover:bg-pink-950/10 transition-all text-left group"
+            >
+              <span className="w-7 h-7 flex items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground group-hover:bg-pink-200 dark:group-hover:bg-pink-900 group-hover:text-pink-700 transition-colors">
+                {slotRank}
+              </span>
+              <Plus className="w-4 h-4 text-muted-foreground group-hover:text-pink-500" />
+              <span className="text-sm text-muted-foreground group-hover:text-pink-600 dark:group-hover:text-pink-400">+ 추가</span>
+              {slotRank <= 6 && (
+                <span className="ml-auto text-[10px] text-muted-foreground/60">권장</span>
+              )}
+            </button>
+          )
+        })}
+
+        {/* 6개 이상 추가 — 항상 보이는 [+ 추가] 버튼 (꾸미기 톤) */}
+        {filledCount >= 6 && (
+          <button
+            onClick={() => addTask()}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border-2 border-dashed border-pink-300 dark:border-pink-800 bg-gradient-to-r from-pink-50/50 via-violet-50/50 to-sky-50/50 dark:from-pink-950/20 dark:via-violet-950/20 dark:to-sky-950/20 hover:from-pink-100 hover:to-sky-100 dark:hover:from-pink-950/40 dark:hover:to-sky-950/40 transition-all text-pink-600 dark:text-pink-400 text-sm font-medium"
+          >
+            <Sparkles className="w-4 h-4" />
+            할 일이 더 있어요? 추가하기 ✨
+            <span className="text-[10px] opacity-70">권장은 6개지만 자유롭게</span>
+          </button>
+        )}
       </div>
 
       <p className="text-[10px] text-muted-foreground">
-        ※ Critical 6 PRD v1 (docs/specs/critical-6/) — 매일 6개 제한 / 3분 작성 / 5단계 상태 / 드래그 우선순위.
-        Sprint 1 Foundation 구현 완료. Sprint 2 (Board/Ruler/Schedule view) + Sprint 3 (Manager Dashboard) 별도.
+        ※ Critical 6 PRD v1.4 (Round 16) — <strong className="text-pink-500">권장 6개</strong> (강제 X) · 3분 작성 · 5단계 상태 · 드래그 우선순위 · 색상/이모지/하트 꾸미기 ✨
         <br />
-        남은 슬롯: <span className="font-semibold text-foreground">{emptySlots}/6</span>
+        {filledCount === 0 && '오늘 일을 시작해볼까요? 빈 슬롯 클릭으로 추가 시작'}
+        {filledCount > 0 && filledCount < 6 && (
+          <>권장까지 <span className="font-semibold text-pink-500">{6 - filledCount}개</span> 남음 · 자유롭게 추가하세요</>
+        )}
+        {filledCount === 6 && '오늘 핵심 6개 완성! 🎉 추가도 가능해요'}
+        {filledCount > 6 && (
+          <>오늘 <span className="font-semibold text-violet-500">{filledCount}개</span> 작성 중 · 권장은 6개지만 자유롭게 ✨</>
+        )}
       </p>
     </div>
   )
@@ -337,6 +355,8 @@ function TaskRow({
   onToggleCollab: () => void
 }) {
   const [titleEditing, setTitleEditing] = useState(!task.title)
+  const [colorPickerOpen, setColorPickerOpen] = useState(false)
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const statusDef = C6_STATUS_DEFS.find((s) => s.code === task.status)!
   const channel = task.channelId ? mockClients.find((c) => c.id === task.channelId) : null
   const collaborators = (task.collaborators ?? []).map((id) => mockUsers.find((u) => u.id === id)).filter(Boolean)
@@ -347,6 +367,12 @@ function TaskRow({
       ? `${task.carryCount}회 이월`
       : null
 
+  // 꾸미기 — Round 16 Phase A
+  const cardColor = (task.cardColor ?? 'default') as TaskCardColor
+  const palette = TASK_CARD_COLOR_PALETTE[cardColor]
+  const isHeartStyle = task.importanceStyle === 'heart'
+  const isDone = task.status === 'Done'
+
   return (
     <div
       draggable
@@ -356,11 +382,19 @@ function TaskRow({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       className={cn(
-        'bg-card border rounded-lg p-3 transition-all',
-        isDragging && 'opacity-40 scale-95',
-        isDragOver && 'ring-2 ring-primary'
+        'border-2 rounded-2xl p-3 transition-all relative',
+        palette.bg, palette.border,
+        isDragging && 'opacity-40 scale-95 rotate-1',
+        isDragOver && 'ring-2 ring-primary',
+        isDone && 'shadow-[0_0_20px_rgba(34,197,94,0.3)]'
       )}
     >
+      {/* Done glow + check sparkle */}
+      {isDone && (
+        <div className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg animate-pulse">
+          <CheckCircle2 className="w-4 h-4" />
+        </div>
+      )}
       <div className="flex items-start gap-3">
         {/* Drag handle + Rank */}
         <div className="flex flex-col items-center gap-1 cursor-grab active:cursor-grabbing pt-1">
@@ -374,6 +408,38 @@ function TaskRow({
         <div className="flex-1 min-w-0 space-y-2">
           {/* Title row */}
           <div className="flex items-center gap-2">
+            {/* 이모지 picker */}
+            <div className="relative">
+              <button
+                onClick={() => { setEmojiPickerOpen((v) => !v); setColorPickerOpen(false) }}
+                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/60 dark:hover:bg-black/20 text-lg"
+                title="이모지 변경"
+              >
+                {task.emoji ?? '😊'}
+              </button>
+              {emojiPickerOpen && (
+                <div className="absolute top-9 left-0 z-20 bg-popover border-2 border-pink-200 dark:border-pink-800 rounded-2xl shadow-lg p-2 w-56">
+                  <div className="grid grid-cols-6 gap-1">
+                    {TASK_EMOJI_PRESETS.map((e) => (
+                      <button
+                        key={e}
+                        onClick={() => { onUpdate({ emoji: e }); setEmojiPickerOpen(false) }}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-pink-100 dark:hover:bg-pink-950 text-lg"
+                      >
+                        {e}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => { onUpdate({ emoji: undefined }); setEmojiPickerOpen(false) }}
+                    className="w-full mt-2 text-[10px] text-muted-foreground hover:text-foreground"
+                  >
+                    이모지 제거
+                  </button>
+                </div>
+              )}
+            </div>
+
             {titleEditing ? (
               <input
                 autoFocus
@@ -382,19 +448,57 @@ function TaskRow({
                 onBlur={() => setTitleEditing(false)}
                 onKeyDown={(e) => { if (e.key === 'Enter') setTitleEditing(false) }}
                 placeholder="업무 제목 입력 (예: Trip.com Q3 단가 협상)"
-                className="flex-1 h-8 px-2 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                className="flex-1 h-8 px-2 rounded-lg border-2 border-pink-300 dark:border-pink-700 bg-background text-sm focus:outline-none focus:ring-2 focus:ring-pink-400"
               />
             ) : (
               <button
                 onClick={() => setTitleEditing(true)}
-                className="flex-1 text-left text-sm font-medium hover:text-primary truncate"
+                className={cn(
+                  'flex-1 text-left text-sm font-medium hover:text-pink-600 dark:hover:text-pink-400 truncate transition-colors',
+                  isDone && 'line-through text-muted-foreground'
+                )}
               >
                 {task.title || '+ 제목 입력'}
               </button>
             )}
+
+            {/* 색상 picker */}
+            <div className="relative">
+              <button
+                onClick={() => { setColorPickerOpen((v) => !v); setEmojiPickerOpen(false) }}
+                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/60 dark:hover:bg-black/20"
+                title="카드 색상 변경"
+              >
+                <Palette className="w-4 h-4 text-muted-foreground" />
+              </button>
+              {colorPickerOpen && (
+                <div className="absolute top-8 right-0 z-20 bg-popover border-2 border-pink-200 dark:border-pink-800 rounded-2xl shadow-lg p-2 w-48">
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(Object.keys(TASK_CARD_COLOR_PALETTE) as TaskCardColor[]).map((c) => {
+                      const p = TASK_CARD_COLOR_PALETTE[c]
+                      return (
+                        <button
+                          key={c}
+                          onClick={() => { onUpdate({ cardColor: c }); setColorPickerOpen(false) }}
+                          className={cn(
+                            'flex flex-col items-center gap-0.5 p-1.5 rounded-lg border-2 hover:scale-105 transition-transform',
+                            p.bg, p.border,
+                            cardColor === c && 'ring-2 ring-pink-400'
+                          )}
+                        >
+                          <span className="text-base">{p.emoji}</span>
+                          <span className="text-[10px] text-muted-foreground">{p.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <button
               onClick={onRemove}
-              className="text-muted-foreground hover:text-destructive p-1"
+              className="text-muted-foreground hover:text-rose-500 p-1"
               aria-label="삭제"
             >
               <X className="w-4 h-4" />
@@ -403,16 +507,22 @@ function TaskRow({
 
           {/* Meta row: importance / category / due / status / collab */}
           <div className="flex items-center gap-1.5 flex-wrap">
-            {/* Importance ⭐ */}
+            {/* Importance — ⭐/♥ 토글 (꾸미기) */}
             <button
               onClick={() => {
                 const next = ((task.importance ?? 1) % 3 + 1) as TaskImportance
                 onUpdate({ importance: next })
               }}
-              className="inline-flex items-center px-2 h-6 rounded text-xs hover:bg-accent"
-              title="중요도 변경"
+              onContextMenu={(e) => {
+                e.preventDefault()
+                onUpdate({ importanceStyle: isHeartStyle ? 'star' : 'heart' })
+              }}
+              className="inline-flex items-center px-2 h-6 rounded-lg text-xs hover:bg-white/60 dark:hover:bg-black/20"
+              title="좌클릭: 중요도 / 우클릭: ⭐ ↔ ♥ 스타일"
             >
-              {IMPORTANCE_LABELS[task.importance ?? 1]}
+              {isHeartStyle
+                ? Array((task.importance ?? 1)).fill('♥').join('')
+                : IMPORTANCE_LABELS[task.importance ?? 1]}
             </button>
 
             {/* Category */}

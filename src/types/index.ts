@@ -204,8 +204,41 @@ export interface Task {
   linkedGoalId?: string                  // OKR Platform StrategicGoal.id 외부 참조
   contributionWeight?: number            // 0~1, 자동 정규화 결과
   okrContributionId?: string             // OKR Platform이 발급한 KrContribution.id
+  // ===== Round 16 꾸미기 / 애착 형성 (Phase A) =====
+  cardColor?: TaskCardColor              // 사용자 선택 색상 (파스텔)
+  emoji?: string                         // 제목 옆 이모지
+  importanceStyle?: 'star' | 'heart'     // ⭐ vs ♥ 토글
+  freeMemo?: string                      // 자유 메모 + 이모지 콤보
   // 옵션 (Phase 2): projectId, customCategoryTags
 }
+
+export type TaskCardColor =
+  | 'default'
+  | 'pink'      // 분홍
+  | 'sky'       // 하늘
+  | 'lavender'  // 연보라
+  | 'mint'      // 민트
+  | 'lemon'     // 노랑
+  | 'peach'     // 주황
+  | 'sage'      // 연두
+  | 'pearl'     // 회색
+
+export const TASK_CARD_COLOR_PALETTE: Record<TaskCardColor, { bg: string; border: string; label: string; emoji: string }> = {
+  default:  { bg: 'bg-card',                    border: 'border-border',                            label: '기본',   emoji: '⚪' },
+  pink:     { bg: 'bg-pink-50 dark:bg-pink-950/30',         border: 'border-pink-300 dark:border-pink-700',     label: '분홍',  emoji: '🌸' },
+  sky:      { bg: 'bg-sky-50 dark:bg-sky-950/30',           border: 'border-sky-300 dark:border-sky-700',       label: '하늘',  emoji: '🌤️' },
+  lavender: { bg: 'bg-violet-50 dark:bg-violet-950/30',     border: 'border-violet-300 dark:border-violet-700', label: '연보라', emoji: '💜' },
+  mint:     { bg: 'bg-emerald-50 dark:bg-emerald-950/30',   border: 'border-emerald-300 dark:border-emerald-700', label: '민트', emoji: '🌿' },
+  lemon:    { bg: 'bg-yellow-50 dark:bg-yellow-950/30',     border: 'border-yellow-300 dark:border-yellow-700', label: '노랑',  emoji: '🍋' },
+  peach:    { bg: 'bg-orange-50 dark:bg-orange-950/30',     border: 'border-orange-300 dark:border-orange-700', label: '복숭아', emoji: '🍑' },
+  sage:     { bg: 'bg-lime-50 dark:bg-lime-950/30',         border: 'border-lime-300 dark:border-lime-700',     label: '연두',  emoji: '🌱' },
+  pearl:    { bg: 'bg-slate-50 dark:bg-slate-900/50',       border: 'border-slate-300 dark:border-slate-700',   label: '진주',  emoji: '🤍' },
+}
+
+export const TASK_EMOJI_PRESETS = [
+  '🎯', '📞', '💼', '🔥', '💡', '✨', '🌟', '🎨', '🚀', '💖', '🍀', '🎀',
+  '⚡', '🌈', '🎈', '🌸', '💫', '🦋', '☕', '📝', '🌿', '🎵', '🍩', '🌙',
+] as const
 
 // Critical 6 PRD: 첨부파일/링크
 export interface TaskAttachment {
