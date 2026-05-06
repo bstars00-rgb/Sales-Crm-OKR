@@ -2,6 +2,7 @@ import { NavLink, useLocation } from 'react-router'
 import {
   Building2, GitBranch, Globe, MapPin, BarChart3, TrendingUp,
   FileSignature, Sparkles, CalendarDays, Target, Users as UsersIcon, AlertTriangle, FileBarChart,
+  Sun, ListChecks,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -18,6 +19,14 @@ interface SubGroup {
 }
 
 const SUB_GROUPS: SubGroup[] = [
+  {
+    parents: ['/briefing', '/critical6', '/critical6/team'],
+    groupLabel: 'Critical 6',
+    tabs: [
+      { to: '/briefing', label: '내 보드 (꾸미기)', icon: Sun },
+      { to: '/critical6/team', label: '팀장 5분 점검', icon: ListChecks },
+    ],
+  },
   {
     parents: ['/crm', '/pipeline', '/hotels', '/destination', '/live-map'],
     groupLabel: 'CRM',

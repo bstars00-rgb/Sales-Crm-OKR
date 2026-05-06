@@ -59,6 +59,42 @@ export default function Critical6Page() {
     setTasks(getTodayTasksByUser(userId))
   }, [userId])
 
+  // ==== Phase B 꾸미기: streak + 배경 테마 + 배지 (localStorage) ====
+  const [streak] = useState(() => {
+    // 시연용 — 사용자별 무작위 1~12일 (실제는 localStorage에서 last write date 기반 계산)
+    const stored = localStorage.getItem(`c6_streak_${userId}`)
+    if (stored) return parseInt(stored)
+    const random = Math.floor(Math.random() * 12) + 1
+    localStorage.setItem(`c6_streak_${userId}`, String(random))
+    return random
+  })
+  const [boardTheme, setBoardTheme] = useState<string>(() => {
+    return localStorage.getItem(`c6_theme_${userId}`) ?? 'default'
+  })
+  const setTheme = (t: string) => {
+    setBoardTheme(t)
+    localStorage.setItem(`c6_theme_${userId}`, t)
+  }
+  const [themePickerOpen, setThemePickerOpen] = useState(false)
+  // 누적 Done — 시연용 무작위
+  const [totalDone] = useState(() => {
+    const stored = localStorage.getItem(`c6_total_done_${userId}`)
+    if (stored) return parseInt(stored)
+    const random = Math.floor(Math.random() * 80) + 5
+    localStorage.setItem(`c6_total_done_${userId}`, String(random))
+    return random
+  })
+  const earnedBadges = useMemo(() => {
+    const badges: string[] = []
+    if (streak >= 3) badges.push('🔥 3일 연속')
+    if (streak >= 7) badges.push('🏅 일주일')
+    if (streak >= 30) badges.push('💎 한 달')
+    if (totalDone >= 7) badges.push('🌱 새싹')
+    if (totalDone >= 30) badges.push('🌳 성장')
+    if (totalDone >= 90) badges.push('🏆 마에스트로')
+    return badges
+  }, [streak, totalDone])
+
   const carryOverCandidates = useMemo(
     () => getCarryOverCandidates(userId).filter((t) => !tasks.some((x) => x.carriedOverFrom === t.id)),
     [userId, tasks]
@@ -162,8 +198,80 @@ export default function Critical6Page() {
     })
   }
 
+  // 배경 테마 클래스
+  const themeBgClass: Record<string, string> = {
+    default:    '',
+    cherry:     'bg-gradient-to-br from-pink-50 via-rose-50 to-orange-50 dark:from-pink-950/20 dark:via-rose-950/20 dark:to-orange-950/20',
+    sky:        'bg-gradient-to-br from-sky-50 via-blue-50 to-cyan-50 dark:from-sky-950/20 dark:via-blue-950/20 dark:to-cyan-950/20',
+    starry:     'bg-gradient-to-br from-violet-100 via-indigo-50 to-blue-50 dark:from-violet-950/30 dark:via-indigo-950/30 dark:to-blue-950/30',
+    cloud:      'bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-slate-900 dark:via-slate-950 dark:to-blue-950/30',
+    forest:     'bg-gradient-to-br from-emerald-50 via-lime-50 to-yellow-50 dark:from-emerald-950/20 dark:via-lime-950/20 dark:to-yellow-950/20',
+    sunset:     'bg-gradient-to-br from-orange-100 via-pink-100 to-purple-100 dark:from-orange-950/30 dark:via-pink-950/30 dark:to-purple-950/30',
+    dot:        'bg-[radial-gradient(circle,_rgba(244,114,182,0.15)_1px,_transparent_1px)] [background-size:16px_16px]',
+  }
+  const THEME_OPTIONS = [
+    { id: 'default', label: '기본',     emoji: '⚪' },
+    { id: 'cherry',  label: '벚꽃',     emoji: '🌸' },
+    { id: 'sky',     label: '하늘',     emoji: '🌤️' },
+    { id: 'starry',  label: '별밤',     emoji: '✨' },
+    { id: 'cloud',   label: '구름',     emoji: '☁️' },
+    { id: 'forest',  label: '숲',       emoji: '🌳' },
+    { id: 'sunset',  label: '노을',     emoji: '🌇' },
+    { id: 'dot',     label: '도트',     emoji: '⚫' },
+  ]
+
   return (
-    <div className="w-full space-y-5">
+    <div className={cn('w-full space-y-5 -mx-2 px-2 -my-2 py-4 rounded-3xl transition-colors', themeBgClass[boardTheme])}>
+      {/* Streak + Badges Bar */}
+      <div className="flex items-center justify-between flex-wrap gap-2 px-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-orange-400 to-rose-400 text-white text-xs font-bold shadow-sm">
+            🔥 {streak}일 연속
+          </span>
+          {earnedBadges.map((b, i) => (
+            <span
+              key={i}
+              className="inline-flex items-center px-2 py-0.5 rounded-full bg-white dark:bg-slate-800 border border-pink-200 dark:border-pink-800 text-xs"
+            >
+              {b}
+            </span>
+          ))}
+          <span className="text-[10px] text-muted-foreground ml-1">
+            누적 완료 {totalDone}건
+          </span>
+        </div>
+        {/* 배경 테마 선택 */}
+        <div className="relative">
+          <button
+            onClick={() => setThemePickerOpen((v) => !v)}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-pink-200 dark:border-pink-800 bg-white dark:bg-slate-800 text-xs hover:bg-pink-50 dark:hover:bg-pink-950"
+          >
+            <Palette className="w-3.5 h-3.5" />
+            <span>{THEME_OPTIONS.find((t) => t.id === boardTheme)?.emoji} {THEME_OPTIONS.find((t) => t.id === boardTheme)?.label}</span>
+          </button>
+          {themePickerOpen && (
+            <div className="absolute top-9 right-0 z-30 bg-popover border-2 border-pink-200 dark:border-pink-800 rounded-2xl shadow-lg p-2 w-44">
+              <p className="text-[10px] font-semibold text-muted-foreground mb-1.5 px-1">배경 테마</p>
+              <div className="grid grid-cols-2 gap-1">
+                {THEME_OPTIONS.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => { setTheme(t.id); setThemePickerOpen(false) }}
+                    className={cn(
+                      'flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs hover:bg-pink-50 dark:hover:bg-pink-950',
+                      boardTheme === t.id && 'bg-pink-100 dark:bg-pink-900 ring-1 ring-pink-400'
+                    )}
+                  >
+                    <span>{t.emoji}</span>
+                    <span>{t.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>

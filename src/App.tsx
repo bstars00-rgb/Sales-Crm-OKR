@@ -8,6 +8,7 @@ import MainLayout from '@/components/layout/MainLayout'
 import LoginPage from '@/pages/LoginPage'
 import DailyBriefingPage from '@/pages/DailyBriefingPage'
 import Critical6Page from '@/pages/Critical6Page'
+import Critical6TeamPage from '@/pages/Critical6TeamPage'
 import OverviewPage from '@/pages/OverviewPage'
 import PerformancePage from '@/pages/PerformancePage'
 import CRMPage from '@/pages/CRMPage'
@@ -72,6 +73,7 @@ export default function App() {
                 <Route element={<ProtectedShell />}>
                   <Route path="/briefing" element={<Critical6Page />} />
                   <Route path="/critical6" element={<Critical6Page />} />
+                  <Route path="/critical6/team" element={<Critical6TeamPage />} />
                   <Route path="/briefing-legacy" element={<DailyBriefingPage />} />
                   <Route path="/" element={<OverviewPage />} />
                   <Route path="/destination" element={<DestinationPage />} />
