@@ -169,8 +169,8 @@ export default function Critical6Page() {
     })
   }, [allTasks, selectedDate])
 
-  // ==== View mode (Phase G) ====
-  const [viewMode, setViewMode] = useState<'list' | 'board'>('list')
+  // ==== View mode (Phase G + H) ====
+  const [viewMode, setViewMode] = useState<'list' | 'board' | 'schedule' | 'all'>('list')
 
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverRank, setDragOverRank] = useState<TaskRank | null>(null)
@@ -260,9 +260,43 @@ export default function Critical6Page() {
 
   // ==== Mutations ====
   const updateTask = (id: string, patch: Partial<Task>) => {
+    // 날짜 변경 (startDate/dueDate/date) 감지 — Undo + auto-navigate
+    const isDateChange = patch.startDate || patch.dueDate || patch.date
+    let snapshot: Task | undefined
+    if (isDateChange) {
+      snapshot = allTasks.find((t) => t.id === id)
+    }
     setAllTasks((prev) =>
       prev.map((t) => (t.id === id ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t))
     )
+    // 날짜 변경 시 — 변경된 날짜가 selectedDate 범위에서 벗어나면 자동 navigate + Undo
+    if (isDateChange && snapshot) {
+      const newStart = patch.startDate ?? snapshot.startDate ?? snapshot.date
+      const newDue = patch.dueDate ?? snapshot.dueDate ?? snapshot.startDate ?? snapshot.date
+      const willBeVisible = (selectedDate >= newStart && selectedDate <= newDue) || newStart === selectedDate
+      if (!willBeVisible && newStart !== selectedDate) {
+        // task가 현재 보드에서 사라지므로 자동 navigate + Undo
+        const prevSelectedDate = selectedDate
+        setSelectedDate(newStart)
+        toast.success(
+          `📆 ${formatRelativeDay(newStart)} (${newStart})로 이동 — "${snapshot.title || '(제목 없음)'}"`,
+          {
+            duration: 8000,
+            action: {
+              label: '↩ 되돌리기',
+              onClick: () => {
+                // 원래 task 복원 + 원래 날짜로 navigate
+                setAllTasks((prev) =>
+                  prev.map((t) => (t.id === id ? snapshot! : t))
+                )
+                setSelectedDate(prevSelectedDate)
+                toast.info('변경 취소됨')
+              },
+            },
+          }
+        )
+      }
+    }
   }
 
   const removeTask = (id: string) => {
@@ -422,26 +456,28 @@ export default function Critical6Page() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* View mode toggle (Phase G) */}
+          {/* View mode toggle (Phase G + H) */}
           <div className="inline-flex rounded-md border border-border h-9 overflow-hidden">
-            <button
-              onClick={() => setViewMode('list')}
-              className={cn(
-                'px-3 text-sm flex items-center gap-1',
-                viewMode === 'list' ? 'bg-pink-100 dark:bg-pink-950 text-pink-700 dark:text-pink-300' : 'hover:bg-accent'
-              )}
-            >
-              📋 목록
-            </button>
-            <button
-              onClick={() => setViewMode('board')}
-              className={cn(
-                'px-3 text-sm flex items-center gap-1 border-l border-border',
-                viewMode === 'board' ? 'bg-pink-100 dark:bg-pink-950 text-pink-700 dark:text-pink-300' : 'hover:bg-accent'
-              )}
-            >
-              📊 보드
-            </button>
+            {[
+              { id: 'list' as const,     icon: '📋', label: '목록' },
+              { id: 'board' as const,    icon: '📊', label: '보드' },
+              { id: 'schedule' as const, icon: '🗓️', label: '캘린더' },
+              { id: 'all' as const,      icon: '🔎', label: '전체' },
+            ].map((m, i) => (
+              <button
+                key={m.id}
+                onClick={() => setViewMode(m.id)}
+                className={cn(
+                  'px-2.5 text-xs flex items-center gap-1',
+                  i > 0 && 'border-l border-border',
+                  viewMode === m.id ? 'bg-pink-100 dark:bg-pink-950 text-pink-700 dark:text-pink-300' : 'hover:bg-accent'
+                )}
+                title={m.label}
+              >
+                <span>{m.icon}</span>
+                <span className="hidden sm:inline">{m.label}</span>
+              </button>
+            ))}
           </div>
           <button
             onClick={() => {
@@ -580,13 +616,33 @@ export default function Critical6Page() {
         </div>
       )}
 
-      {/* Board view (Phase G — Kanban 5 컬럼) */}
+      {/* Board view (Phase G — Kanban 4 컬럼) */}
       {viewMode === 'board' && (
         <BoardView
           tasks={tasks}
           onUpdate={updateTask}
           onRemove={removeTask}
           onAdd={(status) => addTask({ status })}
+        />
+      )}
+
+      {/* Schedule view (Phase H — 월간 캘린더, 모든 task 한 화면) */}
+      {viewMode === 'schedule' && (
+        <ScheduleView
+          allTasks={allTasks}
+          selectedDate={selectedDate}
+          onSelectDate={setSelectedDate}
+          onUpdateTask={updateTask}
+        />
+      )}
+
+      {/* All Tasks view (Phase H — 날짜 무관 검색/필터) */}
+      {viewMode === 'all' && (
+        <AllTasksView
+          allTasks={allTasks}
+          onUpdateTask={updateTask}
+          onRemoveTask={removeTask}
+          onSelectDate={(d) => { setSelectedDate(d); setViewMode('list') }}
         />
       )}
 
@@ -907,6 +963,8 @@ function TaskRow({
               startDate={task.startDate ?? task.date}
               dueDate={task.dueDate ?? task.startDate ?? task.date}
               multiDay={!!task.multiDay}
+              currentSelectedDate={selectedDate}
+              taskTitle={task.title || '(제목 없음)'}
               onChange={(patch) => onUpdate(patch)}
             />
 
@@ -1130,6 +1188,8 @@ function DatePickerInline({
   startDate: string
   dueDate: string
   multiDay: boolean
+  currentSelectedDate?: string
+  taskTitle?: string
   onChange: (patch: { startDate?: string; dueDate?: string; multiDay?: boolean; date?: string }) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -1200,6 +1260,314 @@ function DatePickerInline({
         </div>
       )}
       {void multiDay /* suppress unused */}
+    </div>
+  )
+}
+
+// ============================================================================
+// Schedule View (Phase H — Monthly calendar, multi-day bar)
+// 모든 task를 캘린더에 펼쳐서 보기 — 날짜 변경 후 lost 방지
+// ============================================================================
+function ScheduleView({
+  allTasks, selectedDate, onSelectDate, onUpdateTask,
+}: {
+  allTasks: Task[]
+  selectedDate: string
+  onSelectDate: (d: string) => void
+  onUpdateTask: (id: string, patch: Partial<Task>) => void
+}) {
+  const [monthOffset, setMonthOffset] = useState(0)
+
+  // 캘린더 월 (오늘 + offset)
+  const baseDate = useMemo(() => {
+    const d = new Date()
+    d.setMonth(d.getMonth() + monthOffset)
+    return d
+  }, [monthOffset])
+
+  const year = baseDate.getFullYear()
+  const month = baseDate.getMonth()
+  const firstDay = new Date(year, month, 1)
+  const lastDay = new Date(year, month + 1, 0)
+  const startWeekday = firstDay.getDay() // 0 = Sun
+  const daysInMonth = lastDay.getDate()
+
+  // 6주 (42칸) 캘린더 grid 생성
+  const cells: { date: string; isCurrentMonth: boolean; isToday: boolean; isSelected: boolean }[] = []
+  const today = todayKST()
+  for (let i = 0; i < 42; i++) {
+    const dayOffset = i - startWeekday
+    const d = new Date(year, month, 1 + dayOffset)
+    const dateStr = d.toISOString().split('T')[0]
+    cells.push({
+      date: dateStr,
+      isCurrentMonth: d.getMonth() === month,
+      isToday: dateStr === today,
+      isSelected: dateStr === selectedDate,
+    })
+  }
+
+  // 각 날짜에 해당하는 task 매핑 (multi-day는 모든 날짜에 표시)
+  const tasksByDate = useMemo(() => {
+    const map: Record<string, Task[]> = {}
+    for (const t of allTasks) {
+      const start = t.startDate ?? t.date
+      const end = t.dueDate ?? t.startDate ?? t.date
+      const startD = new Date(start)
+      const endD = new Date(end)
+      for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
+        const ds = d.toISOString().split('T')[0]
+        if (!map[ds]) map[ds] = []
+        map[ds].push(t)
+      }
+    }
+    return map
+  }, [allTasks])
+
+  return (
+    <div className="space-y-3">
+      {/* Month nav */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setMonthOffset((v) => v - 1)}
+            className="px-2 py-1 rounded-md border border-border hover:bg-accent text-sm"
+          >
+            ← 이전
+          </button>
+          <h3 className="text-base font-semibold">
+            {year}년 {month + 1}월
+          </h3>
+          <button
+            onClick={() => setMonthOffset((v) => v + 1)}
+            className="px-2 py-1 rounded-md border border-border hover:bg-accent text-sm"
+          >
+            다음 →
+          </button>
+          <button
+            onClick={() => setMonthOffset(0)}
+            className="px-2 py-1 rounded-md border border-pink-300 bg-pink-50 dark:bg-pink-950 text-sm text-pink-700 dark:text-pink-300"
+          >
+            오늘
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          📅 모든 task 캘린더 보기 — 클릭 시 해당 날짜 보드로 이동
+        </p>
+      </div>
+
+      {/* Calendar grid */}
+      <div className="grid grid-cols-7 gap-1 bg-card border border-border rounded-lg p-2">
+        {/* Weekday header */}
+        {['일', '월', '화', '수', '목', '금', '토'].map((day, i) => (
+          <div
+            key={day}
+            className={cn(
+              'text-center text-xs font-semibold py-1.5',
+              i === 0 && 'text-rose-500',
+              i === 6 && 'text-blue-500'
+            )}
+          >
+            {day}
+          </div>
+        ))}
+        {/* Days */}
+        {cells.map((cell, idx) => {
+          const cellTasks = tasksByDate[cell.date] ?? []
+          return (
+            <button
+              key={idx}
+              onClick={() => onSelectDate(cell.date)}
+              className={cn(
+                'min-h-[100px] p-1 rounded-md border text-left transition-all hover:border-pink-400',
+                !cell.isCurrentMonth && 'opacity-40 bg-muted/30',
+                cell.isToday && 'border-pink-500 ring-2 ring-pink-200 dark:ring-pink-900',
+                cell.isSelected && !cell.isToday && 'border-violet-500 bg-violet-50 dark:bg-violet-950',
+                !cell.isToday && !cell.isSelected && 'border-border bg-card',
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <span className={cn(
+                  'text-xs font-medium',
+                  cell.isToday && 'text-pink-600 dark:text-pink-400 font-bold'
+                )}>
+                  {cell.date.slice(8, 10)}
+                  {cell.isToday && <span className="text-[9px] ml-1">오늘</span>}
+                </span>
+                {cellTasks.length > 0 && (
+                  <span className="text-[9px] text-muted-foreground tabular-nums">{cellTasks.length}</span>
+                )}
+              </div>
+              <div className="mt-1 space-y-0.5">
+                {cellTasks.slice(0, 3).map((t) => {
+                  const cardColor = (t.cardColor ?? 'default') as TaskCardColor
+                  const palette = TASK_CARD_COLOR_PALETTE[cardColor]
+                  const isMultiDayBar = t.multiDay && t.startDate && t.dueDate && t.startDate !== t.dueDate
+                  const isStartDay = t.startDate === cell.date
+                  const isEndDay = t.dueDate === cell.date
+                  return (
+                    <div
+                      key={t.id}
+                      onClick={(e) => { e.stopPropagation(); onSelectDate(cell.date); void onUpdateTask }}
+                      className={cn(
+                        'px-1 py-0.5 rounded text-[9px] truncate border-l-2 leading-tight',
+                        palette.bg, palette.border,
+                        t.status === 'Done' && 'line-through opacity-60',
+                        isMultiDayBar && (isStartDay ? 'rounded-r-none' : isEndDay ? 'rounded-l-none' : 'rounded-none')
+                      )}
+                      title={t.title}
+                    >
+                      {t.emoji ?? '📌'} {t.title || '(제목 없음)'}
+                    </div>
+                  )
+                })}
+                {cellTasks.length > 3 && (
+                  <p className="text-[9px] text-muted-foreground px-1">+{cellTasks.length - 3}</p>
+                )}
+              </div>
+            </button>
+          )
+        })}
+      </div>
+
+      <p className="text-[10px] text-muted-foreground">
+        ※ Multi-day task는 시작일~마감일 모든 날짜에 표시됩니다. 날짜 셀 클릭 시 해당 날짜 보드로 이동.
+      </p>
+    </div>
+  )
+}
+
+// ============================================================================
+// All Tasks View (Phase H — 날짜 무관 검색/필터)
+// ============================================================================
+function AllTasksView({
+  allTasks, onUpdateTask, onRemoveTask, onSelectDate,
+}: {
+  allTasks: Task[]
+  onUpdateTask: (id: string, patch: Partial<Task>) => void
+  onRemoveTask: (id: string) => void
+  onSelectDate: (d: string) => void
+}) {
+  void onUpdateTask
+  const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all')
+  const [krFilter, setKrFilter] = useState<string>('all') // 'all' / krId / 'unlinked'
+  const [importanceFilter, setImportanceFilter] = useState<number | 'all'>('all')
+  const { availableKrs } = useOkr()
+
+  const filtered = useMemo(() => {
+    return allTasks.filter((t) => {
+      if (query && !t.title.toLowerCase().includes(query.toLowerCase())) return false
+      if (statusFilter !== 'all' && t.status !== statusFilter) return false
+      if (krFilter === 'unlinked' && t.linkedKrId) return false
+      if (krFilter !== 'all' && krFilter !== 'unlinked' && t.linkedKrId !== krFilter) return false
+      if (importanceFilter !== 'all' && t.importance !== importanceFilter) return false
+      return true
+    }).sort((a, b) => (a.startDate ?? a.date).localeCompare(b.startDate ?? b.date))
+  }, [allTasks, query, statusFilter, krFilter, importanceFilter])
+
+  return (
+    <div className="space-y-3">
+      {/* Filters */}
+      <div className="flex items-center gap-2 flex-wrap bg-card border border-border rounded-lg p-3">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="🔎 task 제목 검색..."
+          className="flex-1 min-w-[200px] px-2 py-1.5 rounded-md border border-input bg-background text-sm"
+        />
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as TaskStatus | 'all')}
+          className="px-2 py-1.5 rounded-md border border-input bg-background text-xs"
+        >
+          <option value="all">상태 전체</option>
+          {C6_STATUS_DEFS.map((s) => <option key={s.code} value={s.code}>{s.label}</option>)}
+        </select>
+        <select
+          value={krFilter}
+          onChange={(e) => setKrFilter(e.target.value)}
+          className="px-2 py-1.5 rounded-md border border-input bg-background text-xs"
+        >
+          <option value="all">KR 전체</option>
+          <option value="unlinked">미연결</option>
+          {availableKrs.map((k) => (
+            <option key={k.id} value={k.id}>{k.title.slice(0, 25)}</option>
+          ))}
+        </select>
+        <select
+          value={String(importanceFilter)}
+          onChange={(e) => {
+            const v = e.target.value
+            setImportanceFilter(v === 'all' ? 'all' : Number(v))
+          }}
+          className="px-2 py-1.5 rounded-md border border-input bg-background text-xs"
+        >
+          <option value="all">중요도 전체</option>
+          <option value="3">⭐⭐⭐</option>
+          <option value="2">⭐⭐</option>
+          <option value="1">⭐</option>
+        </select>
+        <span className="text-xs text-muted-foreground tabular-nums ml-auto">
+          {filtered.length} / {allTasks.length}건
+        </span>
+      </div>
+
+      {/* Task list (compact) */}
+      <div className="bg-card border border-border rounded-lg overflow-hidden">
+        <div className="grid grid-cols-[100px_1fr_120px_100px_80px_24px] gap-2 px-3 py-2 bg-muted/30 text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border">
+          <span>날짜</span>
+          <span>제목</span>
+          <span>KR</span>
+          <span>상태</span>
+          <span className="text-center">⭐</span>
+          <span></span>
+        </div>
+        {filtered.map((t) => {
+          const linkedKr = t.linkedKrId ? availableKrs.find((k) => k.id === t.linkedKrId) : null
+          const sd = t.startDate ?? t.date
+          const dd = t.dueDate ?? sd
+          const isMultiDay = t.multiDay && sd !== dd
+          return (
+            <div
+              key={t.id}
+              className="grid grid-cols-[100px_1fr_120px_100px_80px_24px] gap-2 px-3 py-2 border-b border-border last:border-b-0 hover:bg-accent/30 items-center text-sm"
+            >
+              <button
+                onClick={() => onSelectDate(sd)}
+                className="text-xs text-left truncate text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                {isMultiDay ? `${sd.slice(5)}~${dd.slice(5)}` : sd.slice(5)}
+              </button>
+              <button
+                onClick={() => onSelectDate(sd)}
+                className="text-left truncate hover:text-pink-600"
+              >
+                {t.emoji ?? '📌'} {t.title || '(제목 없음)'}
+              </button>
+              <span className="text-xs truncate">
+                {linkedKr ? (
+                  <span className="text-violet-600 dark:text-violet-400">🎯 {linkedKr.title.slice(0, 15)}</span>
+                ) : (
+                  <span className="text-muted-foreground italic">미연결</span>
+                )}
+              </span>
+              <span className="text-xs">{t.status}</span>
+              <span className="text-center text-xs">{Array(t.importance ?? 1).fill('⭐').join('')}</span>
+              <button
+                onClick={() => onRemoveTask(t.id)}
+                className="text-muted-foreground hover:text-rose-500"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )
+        })}
+        {filtered.length === 0 && (
+          <p className="text-xs text-muted-foreground text-center py-6">조건에 맞는 task 없음</p>
+        )}
+      </div>
     </div>
   )
 }
