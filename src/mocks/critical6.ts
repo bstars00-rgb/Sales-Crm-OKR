@@ -62,6 +62,14 @@ function makeTask(args: Partial<Task> & { ownerUserId: string; date: string; ran
     carriedOverFrom: args.carriedOverFrom,
     carryCount: args.carryCount ?? 0,
     attachments: args.attachments ?? [],
+    // Round 16 Phase D — 날짜/시간 고도화 (옵션)
+    startDate: args.startDate,
+    dueDate: args.dueDate,
+    multiDay: args.multiDay,
+    // Round 16 Phase E — Eisenhower
+    urgency: args.urgency,
+    // Round 16 OKR 매핑
+    linkedKrId: args.linkedKrId,
   }
 }
 
@@ -118,6 +126,47 @@ export const mockCritical6Tasks: Task[] = [
   // ===== 어제 미완료 → 오늘 carry-over 후보 (별도 user 기록) =====
   makeTask({ ownerUserId: 'u-sales-1', date: today(-1), rank: 5, title: '거래처 미수금 회수 독촉', importance: 2, status: 'Waiting', carriedOverFrom: 'task-prev-001', carryCount: 1 }),
   makeTask({ ownerUserId: 'u-sales-3', date: today(-1), rank: 4, title: 'Booking 권역 분석 자료 정리', importance: 1, status: 'Planned', carryCount: 0 }),
+
+  // ===== Round 16 Phase D — 미래 task 시연용 =====
+  // 내일 (u-sales-1)
+  makeTask({
+    ownerUserId: 'u-sales-1', date: today(1), rank: 1,
+    title: 'Trip.com 분기 정산 회의 준비',
+    importance: 3, urgency: 'urgent', status: 'Planned',
+    startDate: today(1), dueDate: today(1),
+    linkedKrId: 'kr-s-2',
+  }),
+  makeTask({
+    ownerUserId: 'u-sales-1', date: today(1), rank: 2,
+    title: 'Booking.com 신규 통합 NDA 서명',
+    importance: 3, urgency: 'normal', status: 'Planned',
+    startDate: today(1), dueDate: today(2), multiDay: true,
+    linkedKrId: 'kr-s-1',
+  }),
+  // 모레 multi-day task (u-sales-1)
+  makeTask({
+    ownerUserId: 'u-sales-1', date: today(2), rank: 1,
+    title: 'Q3 채널 실적 보고서 (2일 작업)',
+    importance: 2, urgency: 'normal', status: 'Planned',
+    startDate: today(2), dueDate: today(3), multiDay: true,
+    linkedKrId: 'kr-s-2',
+  }),
+  // 내일 (u-sales-2)
+  makeTask({
+    ownerUserId: 'u-sales-2', date: today(1), rank: 1,
+    title: 'Yanolja 파트너십 미팅 (오프라인)',
+    importance: 3, urgency: 'urgent', status: 'Planned',
+    startDate: today(1), dueDate: today(1),
+    linkedKrId: 'kr-s-3',
+  }),
+  // 다음 주 task (u-sales-1) — 일주일 multi-day
+  makeTask({
+    ownerUserId: 'u-sales-1', date: today(7), rank: 1,
+    title: 'B2B Travel Agent partnership 후보 5곳 시장조사 (일주일)',
+    importance: 2, urgency: 'normal', status: 'Planned',
+    startDate: today(7), dueDate: today(13), multiDay: true,
+    linkedKrId: 'kr-s-4',
+  }),
 ]
 
 // ============ DailyCritical6 (오늘 6명) ============

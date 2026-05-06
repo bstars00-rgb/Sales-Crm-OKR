@@ -209,7 +209,45 @@ export interface Task {
   emoji?: string                         // 제목 옆 이모지
   importanceStyle?: 'star' | 'heart'     // ⭐ vs ♥ 토글
   freeMemo?: string                      // 자유 메모 + 이모지 콤보
+  // ===== Round 16 Phase D — 날짜/시간 고도화 =====
+  startDate?: string                     // 시작일 (YYYY-MM-DD, 디폴트 = task.date)
+  dueDate?: string                       // 마감일 (YYYY-MM-DD, 디폴트 = startDate, 별도 가능)
+  multiDay?: boolean                     // 하루에 안 끝나는 task (startDate ≠ dueDate)
+  // ===== Round 16 Phase E — Eisenhower 우선순위 =====
+  urgency?: TaskUrgency                  // 긴급도 (urgent/normal)
   // 옵션 (Phase 2): projectId, customCategoryTags
+}
+
+// Round 16 Phase E — Eisenhower 우선순위
+// urgency × importance 조합:
+// - urgent + important(3) = 🚨 긴급 (Do First — 빨강)
+// - normal + important(3) = ⭐ 중요 (Schedule — 파랑)
+// - urgent + low(1~2) = ⚡ 빠른 처리 (Delegate — 노랑)
+// - normal + low(1~2) = ⚪ 일반 (Eliminate? — 회색)
+export type TaskUrgency = 'urgent' | 'normal'
+
+export interface EisenhowerCategory {
+  id: 'do_first' | 'schedule' | 'delegate' | 'eliminate'
+  label: string
+  emoji: string
+  color: string
+  bgColor: string
+}
+
+export const EISENHOWER_CATEGORIES: Record<EisenhowerCategory['id'], EisenhowerCategory> = {
+  do_first:  { id: 'do_first',  label: '긴급 + 중요',     emoji: '🚨', color: 'text-rose-700 dark:text-rose-300',     bgColor: 'bg-rose-50 dark:bg-rose-950 border-rose-300 dark:border-rose-700' },
+  schedule:  { id: 'schedule',  label: '중요 (계획적)',   emoji: '⭐', color: 'text-blue-700 dark:text-blue-300',     bgColor: 'bg-blue-50 dark:bg-blue-950 border-blue-300 dark:border-blue-700' },
+  delegate:  { id: 'delegate',  label: '긴급 (빠른 처리)', emoji: '⚡', color: 'text-amber-700 dark:text-amber-300',   bgColor: 'bg-amber-50 dark:bg-amber-950 border-amber-300 dark:border-amber-700' },
+  eliminate: { id: 'eliminate', label: '일반',           emoji: '⚪', color: 'text-slate-600 dark:text-slate-400',   bgColor: 'bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700' },
+}
+
+export function getEisenhowerCategory(urgency: TaskUrgency | undefined, importance: TaskImportance | undefined): EisenhowerCategory['id'] {
+  const isUrgent = urgency === 'urgent'
+  const isImportant = (importance ?? 1) >= 3
+  if (isUrgent && isImportant) return 'do_first'
+  if (!isUrgent && isImportant) return 'schedule'
+  if (isUrgent && !isImportant) return 'delegate'
+  return 'eliminate'
 }
 
 export type TaskCardColor =
