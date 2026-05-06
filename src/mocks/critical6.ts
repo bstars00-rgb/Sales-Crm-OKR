@@ -11,7 +11,7 @@ export const C6_STATUS_DEFS: { code: TaskStatus; label: string; color: string; b
   { code: 'InProgress', label: 'In Progress', color: 'text-blue-700 dark:text-blue-300', bgColor: 'bg-blue-500/15 border-blue-500/30' },
   { code: 'Waiting', label: 'Waiting', color: 'text-amber-700 dark:text-amber-300', bgColor: 'bg-amber-500/15 border-amber-500/30' },
   { code: 'Done', label: 'Done', color: 'text-emerald-700 dark:text-emerald-300', bgColor: 'bg-emerald-500/15 border-emerald-500/30' },
-  { code: 'Blocked', label: 'Blocked', color: 'text-red-700 dark:text-red-300', bgColor: 'bg-red-500/15 border-red-500/30' },
+  // { code: 'Blocked', ... } — Round 16: Blocked 단계 제거 (Waiting으로 통합)
 ]
 
 export const IMPORTANCE_LABELS: Record<TaskImportance, string> = { 1: '⭐', 2: '⭐⭐', 3: '⭐⭐⭐' }
@@ -80,7 +80,7 @@ export const mockCritical6Tasks: Task[] = [
   makeTask({ ownerUserId: 'u-sales-1', date: today(), rank: 2, channelId: 'c11', title: 'Ctrip Wholesale 신규 통합 계약서 검토', importance: 3, dueAt: dueAt(0, 14), status: 'InProgress', collaborators: ['u-tmgr'] }),
   makeTask({ ownerUserId: 'u-sales-1', date: today(), rank: 3, title: '주간 매출 보고서 작성', importance: 2, dueAt: dueAt(0, 17), status: 'Planned' }),
   makeTask({ ownerUserId: 'u-sales-1', date: today(), rank: 4, channelId: 'c2', title: 'Trip.com 결제 정보 확인', importance: 2, status: 'Waiting', description: '재무팀 회신 대기 중' }),
-  makeTask({ ownerUserId: 'u-sales-1', date: today(), rank: 5, channelId: 'c11', title: 'Ctrip 법무 검토 요청', importance: 1, status: 'Blocked', blockedReason: '내부 법무팀 4일째 회신 없음', carryCount: 4 }),
+  makeTask({ ownerUserId: 'u-sales-1', date: today(), rank: 5, channelId: 'c11', title: 'Ctrip 법무 검토 요청', importance: 1, status: 'Waiting', blockedReason: '내부 법무팀 4일째 회신 없음', carryCount: 4 }),
   makeTask({ ownerUserId: 'u-sales-1', date: today(), rank: 6, title: '내일 미팅 자료 준비', importance: 1, dueAt: dueAt(0, 18), status: 'Planned' }),
 
   // ===== u-sales-2 (박영업, JP 담당) =====
@@ -94,7 +94,7 @@ export const mockCritical6Tasks: Task[] = [
   // ===== u-sales-3 (이채널, SEA 담당) =====
   makeTask({ ownerUserId: 'u-sales-3', date: today(), rank: 1, channelId: 'c8', title: 'Traveloka 프로모션 협상', importance: 3, dueAt: dueAt(0, 13), status: 'InProgress', collaborators: ['u-dir'] }),
   makeTask({ ownerUserId: 'u-sales-3', date: today(), rank: 2, channelId: 'c12', title: 'Tiket.com Q3 계약 갱신', importance: 3, status: 'Waiting', description: 'SG 본사 승인 대기' }),
-  makeTask({ ownerUserId: 'u-sales-3', date: today(), rank: 3, channelId: 'c5', title: 'Booking.com 권역 확장 제안', importance: 2, status: 'Blocked', blockedReason: '경쟁사 입찰 정보 미확보', carryCount: 2 }),
+  makeTask({ ownerUserId: 'u-sales-3', date: today(), rank: 3, channelId: 'c5', title: 'Booking.com 권역 확장 제안', importance: 2, status: 'Waiting', blockedReason: '경쟁사 입찰 정보 미확보', carryCount: 2 }),
   makeTask({ ownerUserId: 'u-sales-3', date: today(), rank: 4, title: 'SEA 시장 동향 리포트', importance: 2, dueAt: dueAt(0, 17), status: 'InProgress' }),
   makeTask({ ownerUserId: 'u-sales-3', date: today(), rank: 5, channelId: 'c8', title: 'Traveloka 결제 사이클 변경', importance: 1, status: 'Done', doneAt: dueAt(0, 15) }),
   makeTask({ ownerUserId: 'u-sales-3', date: today(), rank: 6, title: '신규 채널 5개 발굴 리스트업', importance: 1, status: 'Planned' }),
@@ -118,7 +118,7 @@ export const mockCritical6Tasks: Task[] = [
   // ===== u-sales-6 (Linh Nguyen, VN) =====
   makeTask({ ownerUserId: 'u-sales-6', date: today(), rank: 1, channelId: 'c8', title: 'Traveloka VN 사무실 방문', importance: 3, dueAt: dueAt(0, 14), status: 'Done', doneAt: dueAt(0, 16) }),
   makeTask({ ownerUserId: 'u-sales-6', date: today(), rank: 2, title: 'VN 권역 신규 OTA 발굴', importance: 3, status: 'InProgress' }),
-  makeTask({ ownerUserId: 'u-sales-6', date: today(), rank: 3, channelId: 'c8', title: 'Traveloka 환율 조정 협상', importance: 2, status: 'Blocked', blockedReason: '본사 재무 정책 변경 대기', carryCount: 5 }),
+  makeTask({ ownerUserId: 'u-sales-6', date: today(), rank: 3, channelId: 'c8', title: 'Traveloka 환율 조정 협상', importance: 2, status: 'Waiting', blockedReason: '본사 재무 정책 변경 대기', carryCount: 5 }),
   makeTask({ ownerUserId: 'u-sales-6', date: today(), rank: 4, title: 'VN 분기 보고서 작성', importance: 2, dueAt: dueAt(0, 17), status: 'Planned' }),
   makeTask({ ownerUserId: 'u-sales-6', date: today(), rank: 5, title: '신규 호텔 paperwork 정리', importance: 1, status: 'InProgress' }),
   makeTask({ ownerUserId: 'u-sales-6', date: today(), rank: 6, title: '주간 동기화 미팅 참석', importance: 1, dueAt: dueAt(1, 10), status: 'Planned' }),

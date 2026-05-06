@@ -29,14 +29,14 @@ export default function Critical6TeamPage() {
       const tasks = getTodayTasksByUser(uid)
       const user = mockUsers.find((u) => u.id === uid) ?? { id: uid, name: uid, role: 'team_member' as const }
       const progress = getUserProgress(uid)
-      const blocked = tasks.filter((t) => t.status === 'Blocked')
       const waiting = tasks.filter((t) => t.status === 'Waiting')
+      const longWaiting = tasks.filter((t) => t.status === 'Waiting' && t.blockedReason) // 장기 대기 (사유 있는 것)
       const overdueCarry = tasks.filter((t) => (t.carryCount ?? 0) >= 3)
       // 가장 위급한 이슈 메시지
       let alert: { level: 'red' | 'amber' | 'green' | 'gray'; msg: string } = { level: 'green', msg: '정상' }
-      if (blocked.length > 0) {
+      if (longWaiting.length > 0) {
         const days = Math.floor(Math.random() * 4) + 1 // 시연용 1~4일
-        alert = { level: 'red', msg: `Blocked: ${blocked[0].blockedReason ?? '사유 미입력'} (${days}d)` }
+        alert = { level: 'red', msg: `장기 대기: ${longWaiting[0].blockedReason ?? '사유 미입력'} (${days}d)` }
       } else if (overdueCarry.length > 0) {
         alert = { level: 'amber', msg: `${overdueCarry[0].carryCount}회 반복 이월: ${overdueCarry[0].title}` }
       } else if (waiting.length > 1) {
@@ -59,8 +59,8 @@ export default function Critical6TeamPage() {
         userRole: user.role,
         tasks,
         progress,
-        blocked,
         waiting,
+        longWaiting,
         alert,
         primaryKr,
         linkedKrCount: linkedKrIds.length,
@@ -85,9 +85,9 @@ export default function Critical6TeamPage() {
   const teamStats = useMemo(() => {
     const totalTasks = teamRows.reduce((sum, r) => sum + r.tasks.length, 0)
     const totalDone = teamRows.reduce((sum, r) => sum + r.progress.done, 0)
-    const totalBlocked = teamRows.reduce((sum, r) => sum + r.blocked.length, 0)
+    const totalLongWaiting = teamRows.reduce((sum, r) => sum + r.longWaiting.length, 0)
     const submitted = teamRows.filter((r) => r.tasks.length > 0).length
-    return { totalTasks, totalDone, totalBlocked, submitted, total: teamRows.length }
+    return { totalTasks, totalDone, totalLongWaiting, submitted, total: teamRows.length }
   }, [teamRows])
 
   return (
@@ -102,8 +102,8 @@ export default function Critical6TeamPage() {
           <p className="text-xs text-muted-foreground mt-1">
             팀장 5분 점검 룰 — {teamStats.submitted}/{teamStats.total} 명 작성 ·{' '}
             완료 {teamStats.totalDone}/{teamStats.totalTasks} ·{' '}
-            <span className={cn(teamStats.totalBlocked > 0 ? 'text-rose-500' : 'text-muted-foreground')}>
-              Blocked {teamStats.totalBlocked}건
+            <span className={cn(teamStats.totalLongWaiting > 0 ? 'text-rose-500' : 'text-muted-foreground')}>
+              장기 대기 {teamStats.totalLongWaiting}건
             </span>
           </p>
         </div>

@@ -229,8 +229,8 @@ export default function Critical6Page() {
   const stats = useMemo(() => {
     const done = tasks.filter((t) => t.status === 'Done').length
     const inProgress = tasks.filter((t) => t.status === 'InProgress').length
-    const blocked = tasks.filter((t) => t.status === 'Blocked').length
-    return { done, inProgress, blocked, completionRate: tasks.length > 0 ? done / tasks.length : 0 }
+    const waiting = tasks.filter((t) => t.status === 'Waiting').length
+    return { done, inProgress, waiting, completionRate: tasks.length > 0 ? done / tasks.length : 0 }
   }, [tasks])
 
   // ==== Drag-drop ====
@@ -418,7 +418,7 @@ export default function Critical6Page() {
               {filledCount > 0 && filledCount <= 6 && <span className="text-pink-500"> · 권장 6개</span>}
               {filledCount > 6 && <span className="text-violet-500"> · 권장 +{filledCount - 6}개 ✨</span>}
             </span> ·{' '}
-            완료 {stats.done} · 진행 {stats.inProgress} · Blocked {stats.blocked}
+            완료 {stats.done} · 진행 {stats.inProgress} · 대기 {stats.waiting}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -632,7 +632,7 @@ function TaskRow({
   const statusDef = C6_STATUS_DEFS.find((s) => s.code === task.status)!
   const channel = task.channelId ? mockClients.find((c) => c.id === task.channelId) : null
   const collaborators = (task.collaborators ?? []).map((id) => mockUsers.find((u) => u.id === id)).filter(Boolean)
-  const isBlockedReasonRequired = task.status === 'Blocked'
+  const isBlockedReasonRequired = false // Round 16: Blocked 단계 제거
   const carryNote = (task.carryCount ?? 0) >= 3
     ? `⚠ ${task.carryCount}회 반복 이월 — 분할 검토 필요`
     : (task.carryCount ?? 0) >= 1
@@ -956,16 +956,6 @@ function TaskRow({
                 value={task.status}
                 onChange={(e) => {
                   const newStatus = e.target.value as TaskStatus
-                  if (newStatus === 'Blocked' && !task.blockedReason) {
-                    const reason = prompt('Blocked 사유를 입력하세요 (10자 이상, BR-027-2):')
-                    if (!reason || reason.length < 10) {
-                      toast.error('blockedReason 10자 이상 필수')
-                      return
-                    }
-                    onUpdate({ status: newStatus, blockedReason: reason })
-                    if (task.linkedKrId) updateStatus(newStatus)
-                    return
-                  }
                   if (newStatus === 'Done') {
                     onUpdate({ doneAt: new Date().toISOString() })
                   }
@@ -1083,7 +1073,7 @@ const BOARD_COLUMNS: { status: TaskStatus; label: string; emoji: string; gradien
   { status: 'InProgress', label: 'In Progress', emoji: '⚡', gradient: 'from-blue-100 to-blue-50 dark:from-blue-950 dark:to-blue-950/30' },
   { status: 'Waiting',    label: 'Waiting',     emoji: '⏸', gradient: 'from-amber-100 to-amber-50 dark:from-amber-950 dark:to-amber-950/30' },
   { status: 'Done',       label: 'Done ✨',      emoji: '✅', gradient: 'from-emerald-100 to-emerald-50 dark:from-emerald-950 dark:to-emerald-950/30' },
-  { status: 'Blocked',    label: 'Blocked',     emoji: '🚫', gradient: 'from-rose-100 to-rose-50 dark:from-rose-950 dark:to-rose-950/30' },
+  // Round 16: Blocked 컬럼 제거 (Waiting으로 통합)
 ]
 
 function BoardView({
@@ -1102,15 +1092,7 @@ function BoardView({
     const task = tasks.find((t) => t.id === draggingId)
     if (!task) return
     if (toStatus === task.status) { setDraggingId(null); setDragOverCol(null); return }
-    if (toStatus === 'Blocked' && !task.blockedReason) {
-      const reason = prompt('Blocked 사유 (10자 이상):')
-      if (!reason || reason.length < 10) {
-        toast.error('blockedReason 10자 이상 필수')
-        setDraggingId(null); setDragOverCol(null)
-        return
-      }
-      onUpdate(task.id, { status: 'Blocked', blockedReason: reason })
-    } else if (toStatus === 'Done') {
+    if (toStatus === 'Done') {
       onUpdate(task.id, { status: 'Done', doneAt: new Date().toISOString() })
       toast.success('완료! ✨')
     } else {
@@ -1121,7 +1103,7 @@ function BoardView({
   }
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       {BOARD_COLUMNS.map((col) => {
         const colTasks = tasks.filter((t) => t.status === col.status)
         const isDragOver = dragOverCol === col.status
