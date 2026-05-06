@@ -11,7 +11,7 @@ import {
 } from '@/mocks/critical6'
 import { mockClients } from '@/mocks/clients'
 import { mockUsers } from '@/mocks/users'
-import type { Task, TaskStatus, TaskRank, TaskImportance, TaskCategory, TaskCardColor } from '@/types'
+import type { Task, TaskStatus, TaskRank, TaskImportance, TaskCategory, TaskCardColor, ChecklistItem } from '@/types'
 import { TASK_CARD_COLOR_PALETTE, TASK_EMOJI_PRESETS } from '@/types'
 import { useOkr } from '@/contexts/OkrContext'
 import { Target as TargetIcon, Link2 } from 'lucide-react'
@@ -1057,6 +1057,12 @@ function TaskRow({
             </p>
           )}
 
+          {/* Phase I — Checklist (sub-task) */}
+          <ChecklistEditor
+            items={task.checklist ?? []}
+            onChange={(items) => onUpdate({ checklist: items })}
+          />
+
           {/* Collaborators panel */}
           {collaboratorOpen && (
             <div className="border border-border rounded p-2 space-y-1">
@@ -1260,6 +1266,121 @@ function DatePickerInline({
         </div>
       )}
       {void multiDay /* suppress unused */}
+    </div>
+  )
+}
+
+// ============================================================================
+// Checklist Editor (Phase I — sub-task in card)
+// ============================================================================
+function ChecklistEditor({
+  items, onChange,
+}: {
+  items: ChecklistItem[]
+  onChange: (items: ChecklistItem[]) => void
+}) {
+  const [expanded, setExpanded] = useState(items.length > 0)
+  const [newText, setNewText] = useState('')
+
+  const doneCount = items.filter((i) => i.done).length
+  const totalCount = items.length
+  const progress = totalCount > 0 ? doneCount / totalCount : 0
+
+  const addItem = () => {
+    if (!newText.trim()) return
+    const newItem: ChecklistItem = {
+      id: `chk-${Date.now()}`,
+      text: newText.trim(),
+      done: false,
+      createdAt: new Date().toISOString(),
+    }
+    onChange([...items, newItem])
+    setNewText('')
+  }
+
+  const toggleItem = (id: string) => {
+    onChange(items.map((i) => (i.id === id ? { ...i, done: !i.done } : i)))
+  }
+
+  const removeItem = (id: string) => {
+    onChange(items.filter((i) => i.id !== id))
+  }
+
+  const updateItemText = (id: string, text: string) => {
+    onChange(items.map((i) => (i.id === id ? { ...i, text } : i)))
+  }
+
+  if (totalCount === 0 && !expanded) {
+    return (
+      <button
+        onClick={() => setExpanded(true)}
+        className="text-[10px] text-muted-foreground hover:text-pink-500 inline-flex items-center gap-1"
+      >
+        + 체크리스트 추가
+      </button>
+    )
+  }
+
+  return (
+    <div className="space-y-1.5 border-t border-border/40 pt-2">
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground hover:text-foreground"
+        >
+          <ChevronDown className={cn('w-3 h-3 transition-transform', !expanded && '-rotate-90')} />
+          체크리스트 {totalCount > 0 && <span className="tabular-nums">({doneCount}/{totalCount})</span>}
+        </button>
+        {totalCount > 0 && (
+          <div className="flex-1 mx-2 h-1 bg-muted rounded-full overflow-hidden max-w-[100px]">
+            <div
+              className="h-full bg-emerald-500 transition-all"
+              style={{ width: `${progress * 100}%` }}
+            />
+          </div>
+        )}
+      </div>
+
+      {expanded && (
+        <div className="space-y-1">
+          {items.map((item) => (
+            <div key={item.id} className="flex items-center gap-1.5 text-xs">
+              <input
+                type="checkbox"
+                checked={item.done}
+                onChange={() => toggleItem(item.id)}
+                className="w-3.5 h-3.5 rounded border-pink-300 text-pink-500 focus:ring-pink-400"
+              />
+              <input
+                type="text"
+                value={item.text}
+                onChange={(e) => updateItemText(item.id, e.target.value)}
+                className={cn(
+                  'flex-1 px-1.5 py-0.5 rounded bg-transparent border-0 focus:outline-none focus:bg-white dark:focus:bg-slate-800 focus:ring-1 focus:ring-pink-400 text-xs',
+                  item.done && 'line-through text-muted-foreground'
+                )}
+              />
+              <button
+                onClick={() => removeItem(item.id)}
+                className="text-muted-foreground hover:text-rose-500 opacity-0 hover:opacity-100 group-hover:opacity-100"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+          <div className="flex items-center gap-1.5 text-xs pl-5">
+            <Plus className="w-3 h-3 text-muted-foreground" />
+            <input
+              type="text"
+              value={newText}
+              onChange={(e) => setNewText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') addItem() }}
+              placeholder="체크리스트 항목 추가 (Enter)"
+              className="flex-1 px-1.5 py-0.5 bg-transparent border-0 focus:outline-none focus:bg-white dark:focus:bg-slate-800 focus:ring-1 focus:ring-pink-400 rounded text-xs"
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

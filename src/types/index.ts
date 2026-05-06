@@ -215,7 +215,27 @@ export interface Task {
   multiDay?: boolean                     // 하루에 안 끝나는 task (startDate ≠ dueDate)
   // ===== Round 16 Phase E — Eisenhower 우선순위 =====
   urgency?: TaskUrgency                  // 긴급도 (urgent/normal)
+  // ===== Round 16 Phase I — Checklist (sub-task) =====
+  checklist?: ChecklistItem[]
+  // ===== Round 16 Phase L — 반복 task =====
+  recurring?: RecurringRule
   // 옵션 (Phase 2): projectId, customCategoryTags
+}
+
+// Round 16 Phase I — Checklist (sub-task)
+export interface ChecklistItem {
+  id: string
+  text: string
+  done: boolean
+  createdAt: string
+}
+
+// Round 16 Phase L — 반복 task 룰
+export type RecurringFrequency = 'none' | 'daily' | 'weekly' | 'monthly'
+export interface RecurringRule {
+  frequency: RecurringFrequency
+  interval?: number                       // 매 N일/주/월 (디폴트 1)
+  endDate?: string                        // 반복 종료일 (옵션)
 }
 
 // Round 16 Phase E — Eisenhower 우선순위
