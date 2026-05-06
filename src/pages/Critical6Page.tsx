@@ -12,7 +12,7 @@ import {
 import { mockClients } from '@/mocks/clients'
 import { mockUsers } from '@/mocks/users'
 import type { Task, TaskStatus, TaskRank, TaskImportance, TaskCategory, TaskCardColor } from '@/types'
-import { TASK_CARD_COLOR_PALETTE, TASK_EMOJI_PRESETS, EISENHOWER_CATEGORIES, getEisenhowerCategory } from '@/types'
+import { TASK_CARD_COLOR_PALETTE, TASK_EMOJI_PRESETS } from '@/types'
 import { useOkr } from '@/contexts/OkrContext'
 import { Target as TargetIcon, Link2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -645,10 +645,6 @@ function TaskRow({
   const isHeartStyle = task.importanceStyle === 'heart'
   const isDone = task.status === 'Done'
 
-  // Phase E — Eisenhower 우선순위
-  const eisenhower = getEisenhowerCategory(task.urgency, task.importance)
-  const eisenConfig = EISENHOWER_CATEGORIES[eisenhower]
-
   // Phase F — OKR 연계
   const { availableKrs, reportContribution } = useOkr()
   const linkedKr = task.linkedKrId ? availableKrs.find((k) => k.id === task.linkedKrId) : null
@@ -660,13 +656,12 @@ function TaskRow({
   const daysToDue = dueDate
     ? Math.round((new Date(dueDate).getTime() - new Date(selectedDate).getTime()) / (1000 * 60 * 60 * 24))
     : null
-  const dueLabel = daysToDue === null
+  // 오늘 마감은 표시 안 함 (selectedDate가 오늘이면 redundant)
+  const dueLabel = daysToDue === null || daysToDue === 0
     ? null
-    : daysToDue === 0
-      ? '오늘 마감'
-      : daysToDue > 0
-        ? `${daysToDue}일 남음`
-        : `${Math.abs(daysToDue)}일 지남`
+    : daysToDue > 0
+      ? `${daysToDue}일 남음`
+      : `${Math.abs(daysToDue)}일 지남`
 
   // Phase F — status 변경 시 자동 reportContribution
   const updateStatus = (newStatus: TaskStatus) => {
@@ -819,28 +814,8 @@ function TaskRow({
             </button>
           </div>
 
-          {/* Meta row: Eisenhower / urgency / importance / KR / category / due / status / collab */}
+          {/* Meta row: importance / KR / channel / category / due / status / collab */}
           <div className="flex items-center gap-1.5 flex-wrap">
-            {/* Phase E — Eisenhower 우선순위 배지 (자동 산출) */}
-            <span
-              className={cn('inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] border', eisenConfig.bgColor, eisenConfig.color)}
-              title={`${eisenConfig.label} — 좌측 ⚡/⭐ 토글로 변경`}
-            >
-              {eisenConfig.emoji} {eisenConfig.label.split(' ')[0]}
-            </span>
-
-            {/* Phase E — Urgency 토글 */}
-            <button
-              onClick={() => onUpdate({ urgency: task.urgency === 'urgent' ? 'normal' : 'urgent' })}
-              className={cn(
-                'inline-flex items-center px-2 h-6 rounded-lg text-xs hover:bg-white/60 dark:hover:bg-black/20',
-                task.urgency === 'urgent' && 'bg-rose-100 dark:bg-rose-950 text-rose-700'
-              )}
-              title="긴급 토글"
-            >
-              {task.urgency === 'urgent' ? '🚨 긴급' : '⏱ 일반'}
-            </button>
-
             {/* Importance — ⭐/♥ 토글 (꾸미기) */}
             <button
               onClick={() => {
@@ -921,12 +896,19 @@ function TaskRow({
               ))}
             </select>
 
-            {/* Channel (옵션) */}
-            {channel && (
-              <span className="inline-flex items-center px-2 h-6 rounded text-xs bg-muted text-muted-foreground">
-                {channel.name}
-              </span>
-            )}
+            {/* Channel picker — CRM 연동 (Round 16) */}
+            <ChannelPicker
+              channelId={task.channelId}
+              onSelect={(id) => onUpdate({ channelId: id })}
+            />
+
+            {/* Date picker — 시작일/마감일 변경 (Round 16) */}
+            <DatePickerInline
+              startDate={task.startDate ?? task.date}
+              dueDate={task.dueDate ?? task.startDate ?? task.date}
+              multiDay={!!task.multiDay}
+              onChange={(patch) => onUpdate(patch)}
+            />
 
             {/* Due time — 30분 단위 select (Round 16 Phase D) */}
             <div className="inline-flex items-center gap-1 h-6 px-2 rounded border border-input bg-background text-xs">
@@ -1003,7 +985,6 @@ function TaskRow({
               <span className={cn(
                 'inline-flex items-center px-2 h-6 rounded-md text-[10px]',
                 daysToDue !== null && daysToDue < 0 ? 'bg-rose-100 text-rose-700' :
-                daysToDue === 0 ? 'bg-amber-100 text-amber-700' :
                 'bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300'
               )}>
                 ⏰ {dueLabel}
@@ -1066,7 +1047,165 @@ function TaskRow({
 }
 
 // ============================================================================
-// Board View (Phase G — Kanban 5 컬럼, drag & drop status 변경)
+// Channel Picker (Round 16 — CRM 연동, task 카드에서 업체 선택)
+// ============================================================================
+function ChannelPicker({ channelId, onSelect }: { channelId?: string; onSelect: (id: string | undefined) => void }) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const channel = channelId ? mockClients.find((c) => c.id === channelId) : null
+
+  const filtered = useMemo(() => {
+    if (!query.trim()) return mockClients.slice(0, 30)
+    const q = query.toLowerCase()
+    return mockClients.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 30)
+  }, [query])
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          'inline-flex items-center gap-1 px-2 h-6 rounded-md text-xs border',
+          channel
+            ? 'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300'
+            : 'border-dashed border-border text-muted-foreground hover:border-blue-400'
+        )}
+        title="업체 선택 (CRM 연동)"
+      >
+        🏢 {channel ? channel.name : '+ 업체 선택'}
+      </button>
+      {open && (
+        <div className="absolute top-7 left-0 z-30 bg-popover border-2 border-blue-200 dark:border-blue-800 rounded-2xl shadow-lg p-2 w-72 max-h-80 overflow-y-auto">
+          <input
+            autoFocus
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="업체명 검색..."
+            className="w-full mb-1.5 px-2 py-1 rounded-md border border-input bg-background text-xs"
+          />
+          {channelId && (
+            <button
+              onClick={() => { onSelect(undefined); setOpen(false) }}
+              className="w-full text-left px-2 py-1 rounded text-[10px] text-muted-foreground hover:bg-accent mb-1"
+            >
+              연결 해제
+            </button>
+          )}
+          {filtered.length === 0 ? (
+            <p className="text-xs text-muted-foreground px-2 py-2">검색 결과 없음</p>
+          ) : (
+            <ul className="space-y-0.5">
+              {filtered.map((c) => (
+                <li key={c.id}>
+                  <button
+                    onClick={() => { onSelect(c.id); setOpen(false); setQuery('') }}
+                    className={cn(
+                      'w-full text-left px-2 py-1 rounded-md text-xs hover:bg-blue-50 dark:hover:bg-blue-950',
+                      channelId === c.id && 'bg-blue-100 dark:bg-blue-900'
+                    )}
+                  >
+                    <span className="font-medium">{c.name}</span>
+                    {c.country && <span className="ml-1 text-[10px] text-muted-foreground">{c.country}</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-[10px] text-muted-foreground mt-2 px-1 border-t border-border pt-1">
+            🔗 CRM 연동 — 선택된 업체의 Activity Timeline에 자동 연결됩니다.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================================
+// Date Picker Inline (Round 16 — 기존 task의 시작일/마감일 변경)
+// ============================================================================
+function DatePickerInline({
+  startDate, dueDate, multiDay, onChange,
+}: {
+  startDate: string
+  dueDate: string
+  multiDay: boolean
+  onChange: (patch: { startDate?: string; dueDate?: string; multiDay?: boolean; date?: string }) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const isMultiDay = startDate !== dueDate
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1 px-2 h-6 rounded-md text-xs border border-input bg-background hover:bg-accent"
+        title="날짜 변경"
+      >
+        <CalendarIcon className="w-3 h-3" />
+        {isMultiDay
+          ? <span>📆 {startDate.slice(5)} ~ {dueDate.slice(5)}</span>
+          : <span>{startDate.slice(5)}</span>}
+      </button>
+      {open && (
+        <div className="absolute top-7 left-0 z-30 bg-popover border-2 border-pink-200 dark:border-pink-800 rounded-2xl shadow-lg p-3 w-72">
+          <div className="space-y-2">
+            <div>
+              <label className="text-[10px] text-muted-foreground">시작일</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  const newStart = e.target.value
+                  // dueDate가 startDate보다 이전이면 dueDate도 같이 이동
+                  const newDue = dueDate < newStart ? newStart : dueDate
+                  onChange({
+                    startDate: newStart,
+                    dueDate: newDue,
+                    date: newStart,
+                    multiDay: newStart !== newDue,
+                  })
+                }}
+                className="w-full mt-0.5 px-2 py-1 rounded-md border border-input bg-background text-xs"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">마감일</label>
+              <input
+                type="date"
+                value={dueDate}
+                min={startDate}
+                onChange={(e) => {
+                  const newDue = e.target.value
+                  onChange({
+                    dueDate: newDue,
+                    multiDay: startDate !== newDue,
+                  })
+                }}
+                className="w-full mt-0.5 px-2 py-1 rounded-md border border-input bg-background text-xs"
+              />
+            </div>
+            {isMultiDay && (
+              <p className="text-[10px] text-violet-500">
+                📆 {Math.round((new Date(dueDate).getTime() - new Date(startDate).getTime()) / (86400000)) + 1}일 작업
+              </p>
+            )}
+            <button
+              onClick={() => setOpen(false)}
+              className="w-full text-xs px-2 py-1 rounded-md bg-pink-500 text-white hover:bg-pink-600 mt-2"
+            >
+              완료
+            </button>
+          </div>
+        </div>
+      )}
+      {void multiDay /* suppress unused */}
+    </div>
+  )
+}
+
+// ============================================================================
+// Board View (Phase G — Kanban 4 컬럼, drag & drop status 변경)
 // ============================================================================
 const BOARD_COLUMNS: { status: TaskStatus; label: string; emoji: string; gradient: string }[] = [
   { status: 'Planned',    label: 'To Do',       emoji: '📋', gradient: 'from-slate-100 to-slate-50 dark:from-slate-900 dark:to-slate-950' },
@@ -1148,11 +1287,8 @@ function BoardView({
                     </button>
                   </div>
                   <div className="flex items-center gap-1 mt-1.5 flex-wrap text-[9px]">
-                    <span className={cn('px-1 rounded',
-                      EISENHOWER_CATEGORIES[getEisenhowerCategory(task.urgency, task.importance)].bgColor,
-                      EISENHOWER_CATEGORIES[getEisenhowerCategory(task.urgency, task.importance)].color,
-                    )}>
-                      {EISENHOWER_CATEGORIES[getEisenhowerCategory(task.urgency, task.importance)].emoji}
+                    <span className="px-1 rounded bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300">
+                      {Array(task.importance ?? 1).fill('⭐').join('')}
                     </span>
                     {task.linkedKrId && (
                       <span className="px-1 rounded bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300">
