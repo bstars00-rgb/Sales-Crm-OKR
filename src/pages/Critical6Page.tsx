@@ -15,7 +15,7 @@ import {
 } from '@/mocks/critical6'
 import { mockClients } from '@/mocks/clients'
 import { mockUsers } from '@/mocks/users'
-import type { Task, TaskStatus, TaskRank, TaskImportance, TaskCategory, TaskCardColor, ChecklistItem } from '@/types'
+import type { Task, TaskStatus, TaskRank, TaskImportance, TaskCategory, TaskCardColor, ChecklistItem, TaskAttachment } from '@/types'
 import { TASK_CARD_COLOR_PALETTE, TASK_EMOJI_PRESETS } from '@/types'
 import { useOkr } from '@/contexts/OkrContext'
 import { Target as TargetIcon, Link2 } from 'lucide-react'
@@ -1073,6 +1073,13 @@ function TaskRow({
             onChange={(items) => onUpdate({ checklist: items })}
           />
 
+          {/* Phase K — Attachments (파일/링크) */}
+          <AttachmentEditor
+            attachments={task.attachments ?? []}
+            ownerId={task.ownerUserId}
+            onChange={(items) => onUpdate({ attachments: items })}
+          />
+
           {/* Collaborators panel */}
           {collaboratorOpen && (
             <div className="border border-border rounded p-2 space-y-1">
@@ -1567,6 +1574,159 @@ function ChecklistEditor({
       )}
     </div>
   )
+}
+
+// ============================================================================
+// Attachment Editor (Phase K — 파일/링크)
+// ============================================================================
+function AttachmentEditor({
+  attachments, ownerId, onChange,
+}: {
+  attachments: TaskAttachment[]
+  ownerId: string
+  onChange: (items: TaskAttachment[]) => void
+}) {
+  const [expanded, setExpanded] = useState(attachments.length > 0)
+  const [linkInput, setLinkInput] = useState('')
+  const [linkNameInput, setLinkNameInput] = useState('')
+
+  const addLink = () => {
+    if (!linkInput.trim()) return
+    const newAttach: TaskAttachment = {
+      id: `att-${Date.now()}`,
+      type: 'link',
+      url: linkInput.trim(),
+      name: linkNameInput.trim() || linkInput.trim().replace(/^https?:\/\//, '').slice(0, 30),
+      uploadedBy: ownerId,
+      uploadedAt: new Date().toISOString(),
+    }
+    onChange([...attachments, newAttach])
+    setLinkInput('')
+    setLinkNameInput('')
+    toast.success('링크 추가됨')
+  }
+
+  const addFile = (file: File) => {
+    // Mock: file을 실제 업로드하지 않고 metadata만 저장
+    const newAttach: TaskAttachment = {
+      id: `att-${Date.now()}`,
+      type: 'file',
+      url: `mock://files/${file.name}`,
+      name: file.name,
+      size: file.size,
+      uploadedBy: ownerId,
+      uploadedAt: new Date().toISOString(),
+    }
+    onChange([...attachments, newAttach])
+    toast.success(`📎 ${file.name} 업로드 (Mock)`)
+  }
+
+  const removeAttach = (id: string) => {
+    onChange(attachments.filter((a) => a.id !== id))
+  }
+
+  if (attachments.length === 0 && !expanded) {
+    return (
+      <button
+        onClick={() => setExpanded(true)}
+        className="text-[10px] text-muted-foreground hover:text-pink-500 inline-flex items-center gap-1"
+      >
+        + 첨부 / 링크 추가
+      </button>
+    )
+  }
+
+  return (
+    <div className="space-y-1.5 border-t border-border/40 pt-2">
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground hover:text-foreground"
+      >
+        <ChevronDown className={cn('w-3 h-3 transition-transform', !expanded && '-rotate-90')} />
+        첨부 / 링크 {attachments.length > 0 && <span className="tabular-nums">({attachments.length})</span>}
+      </button>
+
+      {expanded && (
+        <div className="space-y-1">
+          {/* 기존 첨부 목록 */}
+          {attachments.map((a) => (
+            <div key={a.id} className="flex items-center gap-1.5 text-xs">
+              <span className="text-base">{a.type === 'file' ? '📎' : '🔗'}</span>
+              {a.type === 'link' ? (
+                <a
+                  href={a.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 truncate text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  {a.name}
+                </a>
+              ) : (
+                <span className="flex-1 truncate" title={a.url}>
+                  {a.name}
+                  {a.size && (
+                    <span className="text-[10px] text-muted-foreground ml-1">
+                      ({formatFileSize(a.size)})
+                    </span>
+                  )}
+                </span>
+              )}
+              <button
+                onClick={() => removeAttach(a.id)}
+                className="text-muted-foreground hover:text-rose-500"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+
+          {/* 링크 추가 input */}
+          <div className="flex items-center gap-1.5 text-xs pl-5">
+            <span>🔗</span>
+            <input
+              type="url"
+              value={linkInput}
+              onChange={(e) => setLinkInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') addLink() }}
+              placeholder="https://..."
+              className="flex-1 px-1.5 py-0.5 bg-transparent border-0 focus:outline-none focus:bg-white dark:focus:bg-slate-800 focus:ring-1 focus:ring-pink-400 rounded text-xs"
+            />
+            <input
+              type="text"
+              value={linkNameInput}
+              onChange={(e) => setLinkNameInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') addLink() }}
+              placeholder="이름 (옵션)"
+              className="w-20 px-1.5 py-0.5 bg-transparent border-0 focus:outline-none focus:bg-white dark:focus:bg-slate-800 focus:ring-1 focus:ring-pink-400 rounded text-xs"
+            />
+          </div>
+
+          {/* 파일 업로드 (Mock) */}
+          <div className="flex items-center gap-1.5 text-xs pl-5">
+            <span>📎</span>
+            <label className="flex-1 px-1.5 py-0.5 rounded text-xs cursor-pointer hover:bg-pink-50 dark:hover:bg-pink-950 text-muted-foreground hover:text-pink-600">
+              파일 첨부 (Mock — metadata만 저장)
+              <input
+                type="file"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) addFile(file)
+                  e.target.value = '' // reset
+                }}
+                className="hidden"
+              />
+            </label>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
 }
 
 // ============================================================================
