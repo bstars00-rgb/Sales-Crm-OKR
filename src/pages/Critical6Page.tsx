@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react'
 import {
+  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer,
+} from 'recharts'
+import {
   Sun, Plus, GripVertical, X, Calendar as CalendarIcon, AlertTriangle,
   Star, Heart, Send, Save, ArrowRight, Users, Clock, CheckCircle2, ChevronDown, Palette, Smile, Sparkles,
 } from 'lucide-react'
@@ -169,8 +173,8 @@ export default function Critical6Page() {
     })
   }, [allTasks, selectedDate])
 
-  // ==== View mode (Phase G + H) ====
-  const [viewMode, setViewMode] = useState<'list' | 'board' | 'schedule' | 'all'>('list')
+  // ==== View mode (Phase G + H + J) ====
+  const [viewMode, setViewMode] = useState<'list' | 'board' | 'schedule' | 'all' | 'charts'>('list')
 
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverRank, setDragOverRank] = useState<TaskRank | null>(null)
@@ -463,6 +467,7 @@ export default function Critical6Page() {
               { id: 'board' as const,    icon: '📊', label: '보드' },
               { id: 'schedule' as const, icon: '🗓️', label: '캘린더' },
               { id: 'all' as const,      icon: '🔎', label: '전체' },
+              { id: 'charts' as const,   icon: '📈', label: '분석' },
             ].map((m, i) => (
               <button
                 key={m.id}
@@ -644,6 +649,11 @@ export default function Critical6Page() {
           onRemoveTask={removeTask}
           onSelectDate={(d) => { setSelectedDate(d); setViewMode('list') }}
         />
+      )}
+
+      {/* Charts view (Phase J — 분석) */}
+      {viewMode === 'charts' && (
+        <ChartsView allTasks={allTasks} />
       )}
 
       <p className="text-[10px] text-muted-foreground">
@@ -1267,6 +1277,180 @@ function DatePickerInline({
       )}
       {void multiDay /* suppress unused */}
     </div>
+  )
+}
+
+// ============================================================================
+// Charts View (Phase J — 분석: 완료율 / Status / KR / 카테고리)
+// ============================================================================
+function ChartsView({ allTasks }: { allTasks: Task[] }) {
+  // 1. 일별 완료율 (지난 30일)
+  const dailyCompletion = useMemo(() => {
+    const days: { date: string; total: number; done: number; rate: number }[] = []
+    const today = new Date()
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(today)
+      d.setDate(d.getDate() - i)
+      const ds = d.toISOString().split('T')[0]
+      const dayTasks = allTasks.filter((t) => (t.startDate ?? t.date) === ds)
+      const done = dayTasks.filter((t) => t.status === 'Done').length
+      days.push({
+        date: ds.slice(5),
+        total: dayTasks.length,
+        done,
+        rate: dayTasks.length > 0 ? Math.round((done / dayTasks.length) * 100) : 0,
+      })
+    }
+    return days
+  }, [allTasks])
+
+  // 2. Status 분포 (전체)
+  const statusDist = useMemo(() => {
+    const counts: Record<string, number> = {}
+    allTasks.forEach((t) => {
+      counts[t.status] = (counts[t.status] ?? 0) + 1
+    })
+    return Object.entries(counts).map(([name, value]) => ({ name, value }))
+  }, [allTasks])
+
+  // 3. KR 분포 (linkedKrId 기준)
+  const krDist = useMemo(() => {
+    const counts: Record<string, number> = {}
+    allTasks.forEach((t) => {
+      const key = t.linkedKrId ?? '(미연결)'
+      counts[key] = (counts[key] ?? 0) + 1
+    })
+    return Object.entries(counts).map(([name, value]) => ({ name: name.length > 15 ? name.slice(0, 15) + '..' : name, value }))
+  }, [allTasks])
+
+  // 4. 카테고리 분포
+  const categoryDist = useMemo(() => {
+    const counts: Record<string, number> = {}
+    allTasks.forEach((t) => {
+      counts[t.category] = (counts[t.category] ?? 0) + 1
+    })
+    return Object.entries(counts).map(([name, value]) => ({ name, value }))
+  }, [allTasks])
+
+  // Stats summary
+  const totalTasks = allTasks.length
+  const totalDone = allTasks.filter((t) => t.status === 'Done').length
+  const totalLinked = allTasks.filter((t) => t.linkedKrId).length
+  const overallRate = totalTasks > 0 ? Math.round((totalDone / totalTasks) * 100) : 0
+
+  const STATUS_COLORS: Record<string, string> = {
+    Planned: '#94a3b8',
+    InProgress: '#3b82f6',
+    Waiting: '#f59e0b',
+    Done: '#10b981',
+    Blocked: '#ef4444',
+    Skipped: '#64748b',
+  }
+  const STAR_COLORS = ['#ec4899', '#a855f7', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6']
+
+  return (
+    <div className="space-y-4">
+      {/* Stats summary */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard label="전체 task" value={String(totalTasks)} />
+        <StatCard label="완료" value={`${totalDone} / ${totalTasks}`} accent="emerald" />
+        <StatCard label="완료율" value={`${overallRate}%`} accent="pink" />
+        <StatCard label="OKR 매핑률" value={`${totalTasks > 0 ? Math.round((totalLinked / totalTasks) * 100) : 0}%`} accent="violet" />
+      </div>
+
+      {/* Daily completion (지난 30일) */}
+      <div className="bg-card border border-border rounded-lg p-4">
+        <h3 className="text-sm font-medium mb-2">📈 일별 완료율 (지난 30일)</h3>
+        <div className="h-48">
+          <RechartsLineChart data={dailyCompletion} />
+        </div>
+      </div>
+
+      {/* Status / KR distribution */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="bg-card border border-border rounded-lg p-4">
+          <h3 className="text-sm font-medium mb-2">📊 Status 분포</h3>
+          <div className="h-56">
+            <RechartsPieChart data={statusDist} colors={statusDist.map((s) => STATUS_COLORS[s.name] ?? '#888')} />
+          </div>
+        </div>
+        <div className="bg-card border border-border rounded-lg p-4">
+          <h3 className="text-sm font-medium mb-2">🎯 KR 매핑 분포</h3>
+          <div className="h-56">
+            <RechartsBarChart data={krDist} color="#a855f7" />
+          </div>
+        </div>
+      </div>
+
+      {/* Category */}
+      <div className="bg-card border border-border rounded-lg p-4">
+        <h3 className="text-sm font-medium mb-2">📋 카테고리 분포</h3>
+        <div className="h-48">
+          <RechartsBarChart data={categoryDist} color="#ec4899" />
+        </div>
+      </div>
+
+      <p className="text-[10px] text-muted-foreground">
+        ※ 분석 뷰 — 모든 task 기준 (날짜 필터 무관). Sprint 4 Reports 정식 구현 시 더 많은 차트 + 기간 필터 추가 예정.
+      </p>
+      {void STAR_COLORS}
+    </div>
+  )
+}
+
+function StatCard({ label, value, accent }: { label: string; value: string; accent?: 'emerald' | 'pink' | 'violet' }) {
+  const accentClass: Record<string, string> = {
+    emerald: 'text-emerald-600 dark:text-emerald-400',
+    pink: 'text-pink-600 dark:text-pink-400',
+    violet: 'text-violet-600 dark:text-violet-400',
+  }
+  return (
+    <div className="bg-card border border-border rounded-lg p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={cn('text-2xl font-bold tabular-nums mt-1', accent && accentClass[accent])}>{value}</p>
+    </div>
+  )
+}
+
+// Recharts wrappers
+function RechartsLineChart({ data }: { data: { date: string; rate: number; total: number; done: number }[] }) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+        <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+        <YAxis tick={{ fontSize: 10 }} domain={[0, 100]} />
+        <Tooltip />
+        <Line type="monotone" dataKey="rate" stroke="#ec4899" strokeWidth={2} dot={{ r: 3 }} name="완료율 (%)" />
+      </LineChart>
+    </ResponsiveContainer>
+  )
+}
+
+function RechartsPieChart({ data, colors }: { data: { name: string; value: number }[]; colors: string[] }) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <PieChart>
+        <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={(e: { name: string; value: number }) => `${e.name} ${e.value}`}>
+          {data.map((_, i) => <Cell key={i} fill={colors[i] ?? '#888'} />)}
+        </Pie>
+        <Tooltip />
+      </PieChart>
+    </ResponsiveContainer>
+  )
+}
+
+function RechartsBarChart({ data, color }: { data: { name: string; value: number }[]; color: string }) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={data}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+        <XAxis dataKey="name" tick={{ fontSize: 9 }} interval={0} angle={-15} textAnchor="end" height={50} />
+        <YAxis tick={{ fontSize: 10 }} />
+        <Tooltip />
+        <Bar dataKey="value" fill={color} radius={[4, 4, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
   )
 }
 
