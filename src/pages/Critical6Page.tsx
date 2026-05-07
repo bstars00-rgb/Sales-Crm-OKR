@@ -2055,12 +2055,13 @@ function AllTasksView({
   onRemoveTask: (id: string) => void
   onSelectDate: (d: string) => void
 }) {
-  void onUpdateTask
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all')
   const [krFilter, setKrFilter] = useState<string>('all') // 'all' / krId / 'unlinked'
   const [importanceFilter, setImportanceFilter] = useState<number | 'all'>('all')
   const { availableKrs } = useOkr()
+  // Phase M — Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const filtered = useMemo(() => {
     return allTasks.filter((t) => {
@@ -2121,9 +2122,103 @@ function AllTasksView({
         </span>
       </div>
 
+      {/* Phase M — Bulk action bar (선택된 task 있을 때만) */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-2 flex-wrap bg-pink-50 dark:bg-pink-950 border-2 border-pink-300 dark:border-pink-700 rounded-lg p-3">
+          <span className="text-sm font-semibold text-pink-700 dark:text-pink-300">
+            ✨ {selectedIds.size}건 선택됨
+          </span>
+          <span className="text-xs text-muted-foreground">→ 일괄 변경:</span>
+          <select
+            onChange={(e) => {
+              const newStatus = e.target.value as TaskStatus
+              if (!newStatus) return
+              selectedIds.forEach((id) => {
+                onUpdateTask(id, { status: newStatus })
+              })
+              toast.success(`${selectedIds.size}건 → ${newStatus}로 변경`)
+              setSelectedIds(new Set())
+            }}
+            value=""
+            className="px-2 py-1 rounded-md border border-input bg-background text-xs"
+          >
+            <option value="">상태 변경 ▼</option>
+            {C6_STATUS_DEFS.map((s) => <option key={s.code} value={s.code}>{s.label}</option>)}
+          </select>
+          <select
+            onChange={(e) => {
+              const krId = e.target.value
+              if (!krId) return
+              selectedIds.forEach((id) => {
+                onUpdateTask(id, { linkedKrId: krId === 'unlink' ? undefined : krId })
+              })
+              toast.success(`${selectedIds.size}건 KR 매핑 ${krId === 'unlink' ? '해제' : '변경'}`)
+              setSelectedIds(new Set())
+            }}
+            value=""
+            className="px-2 py-1 rounded-md border border-input bg-background text-xs"
+          >
+            <option value="">KR 매핑 ▼</option>
+            <option value="unlink">매핑 해제</option>
+            {availableKrs.map((k) => (
+              <option key={k.id} value={k.id}>{k.title.slice(0, 25)}</option>
+            ))}
+          </select>
+          <select
+            onChange={(e) => {
+              const v = e.target.value
+              if (!v) return
+              const importance = Number(v) as 1 | 2 | 3
+              selectedIds.forEach((id) => {
+                onUpdateTask(id, { importance })
+              })
+              toast.success(`${selectedIds.size}건 중요도 변경`)
+              setSelectedIds(new Set())
+            }}
+            value=""
+            className="px-2 py-1 rounded-md border border-input bg-background text-xs"
+          >
+            <option value="">중요도 변경 ▼</option>
+            <option value="3">⭐⭐⭐</option>
+            <option value="2">⭐⭐</option>
+            <option value="1">⭐</option>
+          </select>
+          <button
+            onClick={() => {
+              if (!confirm(`${selectedIds.size}건 일괄 삭제 — 되돌릴 수 없습니다.\n계속하시겠습니까?`)) return
+              selectedIds.forEach((id) => onRemoveTask(id))
+              toast.success(`${selectedIds.size}건 삭제됨`)
+              setSelectedIds(new Set())
+            }}
+            className="px-2 py-1 rounded-md border border-rose-300 text-rose-700 hover:bg-rose-100 dark:hover:bg-rose-950 text-xs"
+          >
+            🗑 일괄 삭제
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="ml-auto text-xs text-muted-foreground hover:text-foreground"
+          >
+            선택 해제
+          </button>
+        </div>
+      )}
+
       {/* Task list (compact) */}
       <div className="bg-card border border-border rounded-lg overflow-hidden">
-        <div className="grid grid-cols-[100px_1fr_120px_100px_80px_24px] gap-2 px-3 py-2 bg-muted/30 text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border">
+        <div className="grid grid-cols-[28px_100px_1fr_120px_100px_80px_24px] gap-2 px-3 py-2 bg-muted/30 text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border">
+          <input
+            type="checkbox"
+            checked={filtered.length > 0 && filtered.every((t) => selectedIds.has(t.id))}
+            onChange={(e) => {
+              if (e.target.checked) {
+                setSelectedIds(new Set(filtered.map((t) => t.id)))
+              } else {
+                setSelectedIds(new Set())
+              }
+            }}
+            className="w-3.5 h-3.5"
+            title="전체 선택"
+          />
           <span>날짜</span>
           <span>제목</span>
           <span>KR</span>
@@ -2136,11 +2231,28 @@ function AllTasksView({
           const sd = t.startDate ?? t.date
           const dd = t.dueDate ?? sd
           const isMultiDay = t.multiDay && sd !== dd
+          const isSelected = selectedIds.has(t.id)
           return (
             <div
               key={t.id}
-              className="grid grid-cols-[100px_1fr_120px_100px_80px_24px] gap-2 px-3 py-2 border-b border-border last:border-b-0 hover:bg-accent/30 items-center text-sm"
+              className={cn(
+                'grid grid-cols-[28px_100px_1fr_120px_100px_80px_24px] gap-2 px-3 py-2 border-b border-border last:border-b-0 hover:bg-accent/30 items-center text-sm',
+                isSelected && 'bg-pink-50 dark:bg-pink-950/30'
+              )}
             >
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={(e) => {
+                  setSelectedIds((prev) => {
+                    const next = new Set(prev)
+                    if (e.target.checked) next.add(t.id)
+                    else next.delete(t.id)
+                    return next
+                  })
+                }}
+                className="w-3.5 h-3.5"
+              />
               <button
                 onClick={() => onSelectDate(sd)}
                 className="text-xs text-left truncate text-blue-600 dark:text-blue-400 hover:underline"
