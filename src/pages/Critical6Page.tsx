@@ -15,7 +15,7 @@ import {
 } from '@/mocks/critical6'
 import { mockClients } from '@/mocks/clients'
 import { mockUsers } from '@/mocks/users'
-import type { Task, TaskStatus, TaskRank, TaskImportance, TaskCategory, TaskCardColor, ChecklistItem, TaskAttachment } from '@/types'
+import type { Task, TaskStatus, TaskRank, TaskImportance, TaskCategory, TaskCardColor, ChecklistItem, TaskAttachment, RecurringRule, RecurringFrequency } from '@/types'
 import { TASK_CARD_COLOR_PALETTE, TASK_EMOJI_PRESETS } from '@/types'
 import { useOkr } from '@/contexts/OkrContext'
 import { Target as TargetIcon, Link2 } from 'lucide-react'
@@ -262,6 +262,16 @@ export default function Critical6Page() {
     handleDragEnd()
   }
 
+  // ==== Phase L — 반복 task 다음 인스턴스 자동 생성 helper ====
+  const computeNextRecurringDate = (current: string, rule: RecurringRule): string => {
+    const d = new Date(current)
+    const interval = rule.interval ?? 1
+    if (rule.frequency === 'daily') d.setDate(d.getDate() + interval)
+    else if (rule.frequency === 'weekly') d.setDate(d.getDate() + 7 * interval)
+    else if (rule.frequency === 'monthly') d.setMonth(d.getMonth() + interval)
+    return d.toISOString().split('T')[0]
+  }
+
   // ==== Mutations ====
   const updateTask = (id: string, patch: Partial<Task>) => {
     // 날짜 변경 (startDate/dueDate/date) 감지 — Undo + auto-navigate
@@ -299,6 +309,33 @@ export default function Critical6Page() {
             },
           }
         )
+      }
+    }
+    // Phase L — 반복 task: status → Done 시 다음 인스턴스 자동 생성
+    if (patch.status === 'Done') {
+      const target = allTasks.find((t) => t.id === id)
+      if (target?.recurring && target.recurring.frequency !== 'none') {
+        const currentDate = target.startDate ?? target.date
+        const nextDate = computeNextRecurringDate(currentDate, target.recurring)
+        // 종료일 체크
+        if (target.recurring.endDate && nextDate > target.recurring.endDate) {
+          toast.info(`🔁 반복 종료 (${target.recurring.endDate} 도달)`)
+        } else {
+          const now = new Date().toISOString()
+          const newTask: Task = {
+            ...target,
+            id: `task-recur-${Date.now()}`,
+            date: nextDate,
+            startDate: nextDate,
+            dueDate: nextDate,
+            status: 'Planned',
+            doneAt: undefined,
+            createdAt: now,
+            updatedAt: now,
+          }
+          setAllTasks((prev) => [...prev, newTask])
+          toast.success(`🔁 다음 반복 자동 생성 — ${formatRelativeDay(nextDate)}`)
+        }
       }
     }
   }
@@ -1080,6 +1117,12 @@ function TaskRow({
             onChange={(items) => onUpdate({ attachments: items })}
           />
 
+          {/* Phase L — Recurring (반복 task) */}
+          <RecurringEditor
+            recurring={task.recurring}
+            onChange={(rule) => onUpdate({ recurring: rule })}
+          />
+
           {/* Collaborators panel */}
           {collaboratorOpen && (
             <div className="border border-border rounded p-2 space-y-1">
@@ -1571,6 +1614,105 @@ function ChecklistEditor({
             />
           </div>
         </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================================
+// Recurring Editor (Phase L — 반복 task)
+// ============================================================================
+function RecurringEditor({
+  recurring, onChange,
+}: {
+  recurring?: RecurringRule
+  onChange: (rule: RecurringRule | undefined) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const isActive = recurring && recurring.frequency !== 'none'
+
+  if (!isActive && !open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="text-[10px] text-muted-foreground hover:text-pink-500 inline-flex items-center gap-1"
+      >
+        🔁 반복 설정
+      </button>
+    )
+  }
+
+  const labelMap: Record<RecurringFrequency, string> = {
+    none: '반복 없음',
+    daily: '매일',
+    weekly: '매주',
+    monthly: '매월',
+  }
+
+  return (
+    <div className="border-t border-border/40 pt-2">
+      <div className="flex items-center gap-1.5 flex-wrap text-xs">
+        <span className="text-[10px] font-semibold text-muted-foreground inline-flex items-center gap-1">
+          🔁 반복:
+        </span>
+        <select
+          value={recurring?.frequency ?? 'none'}
+          onChange={(e) => {
+            const freq = e.target.value as RecurringFrequency
+            if (freq === 'none') {
+              onChange(undefined)
+              setOpen(false)
+              return
+            }
+            onChange({ frequency: freq, interval: recurring?.interval ?? 1 })
+          }}
+          className="px-1.5 py-0.5 rounded text-xs border border-input bg-background"
+        >
+          {(['none', 'daily', 'weekly', 'monthly'] as RecurringFrequency[]).map((f) => (
+            <option key={f} value={f}>{labelMap[f]}</option>
+          ))}
+        </select>
+        {isActive && (
+          <>
+            <span className="text-[10px] text-muted-foreground">매</span>
+            <input
+              type="number"
+              min={1}
+              max={30}
+              value={recurring?.interval ?? 1}
+              onChange={(e) => onChange({
+                ...recurring!,
+                interval: Math.max(1, Math.min(30, parseInt(e.target.value) || 1)),
+              })}
+              className="w-12 px-1.5 py-0.5 rounded text-xs border border-input bg-background"
+            />
+            <span className="text-[10px] text-muted-foreground">
+              {recurring?.frequency === 'daily' && '일'}
+              {recurring?.frequency === 'weekly' && '주'}
+              {recurring?.frequency === 'monthly' && '개월'}
+              마다
+            </span>
+            <span className="text-[10px] text-muted-foreground ml-1">~</span>
+            <input
+              type="date"
+              value={recurring?.endDate ?? ''}
+              onChange={(e) => onChange({
+                ...recurring!,
+                endDate: e.target.value || undefined,
+              })}
+              className="px-1.5 py-0.5 rounded text-xs border border-input bg-background"
+              placeholder="종료일 (옵션)"
+            />
+            <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300">
+              ✨ 반복 활성
+            </span>
+          </>
+        )}
+      </div>
+      {isActive && (
+        <p className="text-[10px] text-muted-foreground mt-1 pl-4">
+          ※ 완료 시 다음 {labelMap[recurring!.frequency].replace('매', '')} 자동 생성 (Mock — Phase 2 cron 구현 예정)
+        </p>
       )}
     </div>
   )
